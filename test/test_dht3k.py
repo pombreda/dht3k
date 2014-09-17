@@ -3,6 +3,7 @@ Integration tests for pydht
 """
 
 from dht3k import DHT
+import pytest
 
 
 class TestPyDht(object):
@@ -20,10 +21,25 @@ class TestPyDht(object):
 
     def teardown(self):
         """ Teardown """
-        pass
+        self.dht1.server.shutdown()
+        self.dht2.server.shutdown()
+        self.dht1.server.server_close()
+        self.dht2.server.server_close()
 
-    def test_init(self):
+    def test_find_set(self):
         """ Testing init """
         self.dht1[b"huhu"] = b"haha"
         assert self.dht2[b"huhu"] == b"haha"
+
+    def test_find_set_str(self):
+        """ Testing init """
+        self.dht1["huhu"] = b"haha"
+        assert self.dht2["huhu"] == b"haha"
+
+    def test_not_find(self):
+        """ Testing init """
+        self.dht1[b"huhu"] = b"haha"
+        with pytest.raises(KeyError):
+            self.dht2[b"blau"] == b"haha"
+
 # pylama:ignore=w0201
