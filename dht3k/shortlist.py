@@ -1,6 +1,8 @@
 import threading
 
-from .peer import Peer
+from .peer    import Peer
+from .hashing import bytes2int
+
 
 class Shortlist(object):
     def __init__(self, k, key):
@@ -29,9 +31,9 @@ class Shortlist(object):
             for i in range(len(self.list)):
                 if node.id == self.list[i][0][2]:
                     break
-                iid = int.from_bytes(node.id, 'big')
-                ikey = int.from_bytes(self.key, 'big')
-                ilist = int.from_bytes(self.list[i][0][2], 'big')
+                iid   = bytes2int(node.id)
+                ikey  = bytes2int(self.key)
+                ilist = bytes2int(self.list[i][0][2])
                 if iid ^ ikey < ilist ^ ikey:
                     self.list.insert(i, (node.astriple(), False))
                     self.list = self.list[:self.k]

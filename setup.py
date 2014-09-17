@@ -34,6 +34,8 @@ setup(
     package_dir={'dht3k': 'dht3k'},
     include_package_data=True,
     install_requires=[
+        "msgpack-python",
+        "six",
     ],
     license='MIT',
     zip_safe=False,

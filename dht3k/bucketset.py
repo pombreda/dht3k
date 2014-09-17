@@ -1,12 +1,13 @@
 import heapq
 import threading
 
-from .peer import Peer
+from .peer    import Peer
+from .hashing import bytes2int
 
 
 def largest_differing_bit(value1, value2):
-    int1 = int.from_bytes(value1, 'big')  # Network order
-    int2 = int.from_bytes(value2, 'big')  # Network order
+    int1 = bytes2int(value1)
+    int2 = bytes2int(value2)
     distance = int1 ^ int2
     length = -1
     while (distance):
@@ -38,8 +39,8 @@ class BucketSet(object):
         num_results = limit if limit else self.bucket_size
         with self.lock:
             def keyfunction(peer):
-                ikey = int.from_bytes(key, 'big')
-                ipeer = int.from_bytes(peer[2], 'big')
+                ikey  = bytes2int(key)
+                ipeer = bytes2int(peer[2])
                 return ikey ^ ipeer
             peers = (peer for bucket in self.buckets for peer in bucket)
             best_peers = heapq.nsmallest(self.bucket_size, peers, keyfunction)

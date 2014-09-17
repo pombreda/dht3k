@@ -1,7 +1,10 @@
 import msgpack
 import random
 import socket
-import socketserver
+try:
+    import socketserver
+except ImportError:
+    import SocketServer as socketserver
 import threading
 import time
 
