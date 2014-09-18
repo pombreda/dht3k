@@ -19,6 +19,8 @@ alpha = 3
 id_bits = id_bytes * 8
 iteration_sleep = 1
 
+data_received = threading.Event()
+
 
 class DHTRequestHandler(socketserver.BaseRequestHandler):
 
@@ -40,12 +42,16 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
                 self.handle_found_value(message)
             elif message_type == Message.STORE:
                 self.handle_store(message)
-        except KeyError as ValueError:
+            client_host, client_port = self.client_address
+            peer_id = message[Message.PEER_ID]
+            new_peer = Peer(client_host, client_port, peer_id)
+            self.server.dht.buckets.insert(new_peer)
+            data_received.set()
+            data_received.clear()
+        except KeyError:
             pass
-        client_host, client_port = self.client_address
-        peer_id = message[Message.PEER_ID]
-        new_peer = Peer(client_host, client_port, peer_id)
-        self.server.dht.buckets.insert(new_peer)
+        except msgpack.UnpackValueError:
+            pass
 
     def handle_ping(self, message):
         client_host, client_port = self.client_address
@@ -98,13 +104,13 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
         del self.server.dht.rpc_ids[rpc_id]
         nearest_nodes = [Peer(*peer) for peer in message[Message.NEAREST_NODES]]
         shortlist.update(nearest_nodes)
-        
+
     def handle_found_value(self, message):
         rpc_id = message[Message.RPC_ID]
         shortlist = self.server.dht.rpc_ids[rpc_id]
         del self.server.dht.rpc_ids[rpc_id]
         shortlist.set_complete(message[Message.VALUE])
-        
+
     def handle_store(self, message):
         key = message[Message.ID]
         self.server.dht.data[key] = message[Message.VALUE]
@@ -130,7 +136,7 @@ class DHT(object):
         self.server_thread.daemon = True
         self.server_thread.start()
         self.bootstrap(str(boot_host), boot_port)
-    
+
     def iterative_find_nodes(self, key, boot_peer=None):
         shortlist = Shortlist(k, key)
         shortlist.update(self.buckets.nearest_nodes(key, limit=alpha))
@@ -138,35 +144,56 @@ class DHT(object):
             rpc_id = random_id()
             self.rpc_ids[rpc_id] = shortlist
             boot_peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
-        while (not shortlist.complete()) or boot_peer:
-            nearest_nodes = shortlist.get_next_iteration(alpha)
-            for peer in nearest_nodes:
-                shortlist.mark(peer)
-                rpc_id = random_id()
-                self.rpc_ids[rpc_id] = shortlist
-                peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id) ######
-            time.sleep(iteration_sleep)
-            boot_peer = None
-        return shortlist.results()
-        
+        start = time.time()
+        try:
+            while (not shortlist.complete()):
+                nearest_nodes = shortlist.get_next_iteration(alpha)
+                for peer in nearest_nodes:
+                    shortlist.mark(peer)
+                    rpc_id = random_id()
+                    self.rpc_ids[rpc_id] = shortlist
+                    peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
+                start = time.time()
+                while data_received.wait(iteration_sleep/10.0):
+                    if (time.time() - start) > iteration_sleep:
+                        break
+                    if shortlist.completion_value:
+                        return shortlist.results()
+            return shortlist.results()
+        finally:
+            end = time.time()
+            # Convert to logging
+            print("find_nodes: %.5fs" % (end - start))
+
     def iterative_find_value(self, key):
         shortlist = Shortlist(k, key)
         shortlist.update(self.buckets.nearest_nodes(key, limit=alpha))
-        while not shortlist.complete():
-            nearest_nodes = shortlist.get_next_iteration(alpha)
-            for peer in nearest_nodes:
-                shortlist.mark(peer)
-                rpc_id = random_id()
-                self.rpc_ids[rpc_id] = shortlist
-                peer.find_value(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id) #####
-            time.sleep(iteration_sleep)
-        return shortlist.completion_result()
-            
+        start = time.time()
+        try:
+            while (not shortlist.complete()):
+                nearest_nodes = shortlist.get_next_iteration(alpha)
+                for peer in nearest_nodes:
+                    shortlist.mark(peer)
+                    rpc_id = random_id()
+                    self.rpc_ids[rpc_id] = shortlist
+                    peer.find_value(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
+                start = time.time()
+                while data_received.wait(iteration_sleep/10.0):
+                    if (time.time() - start) > iteration_sleep:
+                        break
+                    if shortlist.completion_value:
+                        return shortlist.completion_result()
+            return shortlist.completion_result()
+        finally:
+            end = time.time()
+            # Convert to logging
+            print("find_value: %.5fs" % (end - start))
+
     def bootstrap(self, boot_host, boot_port):
         if boot_host and boot_port:
             boot_peer = Peer(boot_host, boot_port, 0)
             self.iterative_find_nodes(self.peer.id, boot_peer=boot_peer)
-                    
+
     def __getitem__(self, key):
         hashed_key = hash_function(msgpack.dumps(key))
         if hashed_key in self.data:
@@ -175,7 +202,7 @@ class DHT(object):
         if result:
             return result
         raise KeyError
-        
+
     def __setitem__(self, key, value):
         hashed_key = hash_function(msgpack.dumps(key))
         nearest_nodes = self.iterative_find_nodes(hashed_key)

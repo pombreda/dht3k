@@ -41,13 +41,13 @@ class Shortlist(object):
             else:
                 if len(self.list) < self.k:
                     self.list.append((node.astriple(), False))
-                    
+
     def mark(self, node):
         with self.lock:
             for i in range(len(self.list)):
                 if node.id == self.list[i][0][2]:
                     self.list[i] = (node.astriple(), True)
-                    
+  
     def complete(self):
         if self.completion_value:
             return True
@@ -56,7 +56,7 @@ class Shortlist(object):
                 if not completed:
                     return False
             return True
-            
+
     def get_next_iteration(self, alpha):
         if self.completion_value:
             return []
