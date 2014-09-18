@@ -36,6 +36,7 @@ setup(
     install_requires=[
         "msgpack-python",
         "six",
+        "futures",
     ],
     license='MIT',
     zip_safe=False,

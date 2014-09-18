@@ -1,6 +1,7 @@
 import msgpack
 import random
 import socket
+import concurrent.futures as futures
 try:
     import socketserver
 except ImportError:
@@ -18,8 +19,6 @@ k = 20
 alpha = 3
 id_bits = id_bytes * 8
 iteration_sleep = 1
-
-data_received = threading.Event()
 
 
 class DHTRequestHandler(socketserver.BaseRequestHandler):
@@ -46,8 +45,6 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             peer_id = message[Message.PEER_ID]
             new_peer = Peer(client_host, client_port, peer_id)
             self.server.dht.buckets.insert(new_peer)
-            data_received.set()
-            data_received.clear()
         except KeyError:
             pass
         except msgpack.UnpackValueError:
@@ -147,18 +144,18 @@ class DHT(object):
         start = time.time()
         try:
             while (not shortlist.complete()):
+                print("itr")
                 nearest_nodes = shortlist.get_next_iteration(alpha)
                 for peer in nearest_nodes:
                     shortlist.mark(peer)
                     rpc_id = random_id()
                     self.rpc_ids[rpc_id] = shortlist
                     peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
-                start = time.time()
-                while data_received.wait(iteration_sleep/10.0):
-                    if (time.time() - start) > iteration_sleep:
-                        break
-                    if shortlist.completion_value:
-                        return shortlist.results()
+                try:
+                    shortlist.completion_value.result(timeout=iteration_sleep)
+                    return shortlist.results()
+                except futures.TimeoutError:
+                    pass
             return shortlist.results()
         finally:
             end = time.time()
@@ -177,12 +174,11 @@ class DHT(object):
                     rpc_id = random_id()
                     self.rpc_ids[rpc_id] = shortlist
                     peer.find_value(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
-                start = time.time()
-                while data_received.wait(iteration_sleep/10.0):
-                    if (time.time() - start) > iteration_sleep:
-                        break
-                    if shortlist.completion_value:
-                        return shortlist.completion_result()
+                try:
+                    shortlist.completion_value.result(timeout=iteration_sleep)
+                    return shortlist.completion_result()
+                except futures.TimeoutError:
+                    pass
             return shortlist.completion_result()
         finally:
             end = time.time()
