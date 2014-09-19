@@ -4,6 +4,7 @@ import concurrent.futures as futures
 from .peer    import Peer
 from .hashing import bytes2int
 
+
 class Shortlist(object):
     iteration_sleep = 1
 
@@ -41,24 +42,24 @@ class Shortlist(object):
             return
         with self.lock:
             for i in range(len(self.list)):
-                if node.id == self.list[i][0][2]:
+                if node.id == self.list[i][0][1]:
                     break
                 iid   = bytes2int(node.id)
                 ikey  = bytes2int(self.key)
-                ilist = bytes2int(self.list[i][0][2])
+                ilist = bytes2int(self.list[i][0][1])
                 if iid ^ ikey < ilist ^ ikey:
-                    self.list.insert(i, (node.astriple(), False))
+                    self.list.insert(i, (node.astuple(), False))
                     self.list = self.list[:self.k]
                     break
             else:
                 if len(self.list) < self.k:
-                    self.list.append((node.astriple(), False))
+                    self.list.append((node.astuple(), False))
 
     def mark(self, node):
         with self.lock:
             for i in range(len(self.list)):
-                if node.id == self.list[i][0][2]:
-                    self.list[i] = (node.astriple(), True)
+                if node.id == self.list[i][0][1]:
+                    self.list[i] = (node.astuple(), True)
 
     def complete(self):
         if self.completion_value.done():

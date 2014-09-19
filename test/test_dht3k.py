@@ -3,8 +3,10 @@ Integration tests for pydht
 """
 
 from dht3k import DHT
+from dht3k import hashing
 import pytest
 import time
+import random
 
 
 class TestPyDht(object):
@@ -12,20 +14,25 @@ class TestPyDht(object):
 
     def setup(self):
         """ Setup """
-        self.dht1 = DHT("localhost", 4165)
+        self.dht1 = DHT(4165, "127.0.0.1", "::1")
         self.dht2 = DHT(
-            "localhost",
             4166,
-            boot_host="localhost",
+            "127.0.0.1",
+            "::1",
+            boot_host="::1",
             boot_port=4165
         )
 
     def teardown(self):
         """ Teardown """
-        self.dht1.server.shutdown()
-        self.dht2.server.shutdown()
-        self.dht1.server.server_close()
-        self.dht2.server.server_close()
+        self.dht1.server4.shutdown()
+        self.dht2.server4.shutdown()
+        self.dht1.server4.server_close()
+        self.dht2.server4.server_close()
+        self.dht1.server6.shutdown()
+        self.dht2.server6.shutdown()
+        self.dht1.server6.server_close()
+        self.dht2.server6.server_close()
 
     def test_find_set(self):
         """ Testing init """
@@ -68,23 +75,38 @@ class TestPyDht(object):
         time.sleep(0.2)
         assert self.dht2["bla"] == 0
 
-    def test_large_network(self):
-        """ Testing a larger network """
-        dhts = []
-        try:
-            for x in range(100):
-                dhts.append(DHT(
-                    "localhost",
-                    x + 30000,
-                    boot_host="localhost",
-                    boot_port=4165,
-                ))
-            self.dht2["baum"] = b"ast"
-            for dht in dhts:
-                assert dht["baum"] == b"ast"
-        finally:
-            for dht in dhts:
-                dht.server.shutdown()
-                dht.server.server_close()
+    # def test_large_network(self):
+    #     """ Testing a larger network """
+    #     dhts = []
+    #     try:
+    #         for x in range(100):
+    #             try:
+    #                 dhts.append(DHT(
+    #                     "::1",
+    #                     x + 30000,
+    #                     boot_host="::1",
+    #                     boot_port=4165,
+    #                 ))
+    #             except DHT.NetworkError:
+    #                 pass
+    #         # self.dht2["baum"] = b"ast"
+    #         # for dht in dhts:
+    #         #     assert dht["baum"] == b"ast"
+    #         for x in range(10):
+    #             dht1 = random.choice(dhts)
+    #             dht2 = random.choice(dhts)
+    #             for i in range(32):
+    #                 # Force boot maintanance
+    #                 dht1.iterative_find_nodes(hashing.int2bytes(2 ** i))
+    #                 dht2.iterative_find_nodes(hashing.int2bytes(2 ** i))
+    #             x += 1
+    #             dht1[x] = x
+    #             time.sleep(0.2)
+    #             assert dht2[x] == x
+
+    #     finally:
+    #         for dht in dhts:
+    #             dht.server.shutdown()
+    #             dht.server.server_close()
 
 # pylama:ignore=w0201

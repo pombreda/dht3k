@@ -37,6 +37,7 @@ setup(
         "msgpack-python",
         "six",
         "futures",
+        "ipaddress",
     ],
     license='MIT',
     zip_safe=False,

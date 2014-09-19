@@ -1,6 +1,7 @@
 import msgpack
 import random
 import socket
+import ipaddress
 import concurrent.futures as futures
 try:
     import socketserver
@@ -10,7 +11,7 @@ import threading
 import time
 
 from .bucketset import BucketSet
-from .hashing   import hash_function, random_id, id_bytes
+from .hashing   import hash_function, random_id, id_bytes, int2bytes
 from .peer      import Peer
 from .shortlist import Shortlist
 from .const     import Message
@@ -43,23 +44,30 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
                 self.handle_found_value(message)
             elif message_type == Message.STORE:
                 self.handle_store(message)
-            client_host, client_port = self.client_address
             peer_id = message[Message.PEER_ID]
-            new_peer = Peer(client_host, client_port, peer_id)
+            new_peer = self.peer_from_client_address(
+                self.client_address,
+                peer_id
+            )
             self.server.dht.buckets.insert(new_peer)
         except KeyError:
             pass
         except msgpack.UnpackValueError:
             pass
 
+    def peer_from_client_address(self, client_address, id_):
+        ipaddr = ipaddress.ip_address(client_address[0])
+        if isinstance(ipaddr, ipaddress.IPv6Address):
+            return Peer(client_address[1], id_, hostv6=ipaddr)
+        else:
+            return Peer(client_address[1], id_, hostv4=ipaddr)
+
     def handle_ping(self, message):
-        client_host, client_port = self.client_address
         id_ = message[Message.PEER_ID]
-        peer = Peer(client_host, client_port, id_)
+        peer = self.peer_from_client_address(self.client_address, id_)
         peer.pong(
-            socket=self.server.socket,
+            dht=self.server.dht,
             peer_id=self.server.dht.peer.id,
-            lock=self.server.send_lock
         )
 
     def handle_pong(self, message):
@@ -68,8 +76,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
     def handle_find(self, message, find_value=False):
         key = message[Message.ID]
         id_ = message[Message.PEER_ID]
-        client_host, client_port = self.client_address
-        peer = Peer(client_host, client_port, id_)
+        peer = self.peer_from_client_address(self.client_address, id_)
         response_socket = self.request[1]
         if find_value and (key in self.server.dht.data):
             value = self.server.dht.data[key]
@@ -77,24 +84,22 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
                 id_,
                 value,
                 message[Message.RPC_ID],
-                socket=response_socket,
+                dht=self.server.dht,
                 peer_id=self.server.dht.peer.id,
-                lock=self.server.send_lock
             )
         else:
             nearest_nodes = self.server.dht.buckets.nearest_nodes(id_)
             if not nearest_nodes:
                 nearest_nodes.append(self.server.dht.peer)
             nearest_nodes = [
-                nearest_peer.astriple() for nearest_peer in nearest_nodes
+                nearest_peer.astuple() for nearest_peer in nearest_nodes
             ]
             peer.found_nodes(
                 id_,
                 nearest_nodes,
                 message[Message.RPC_ID],
-                socket=response_socket,
+                dht=self.server.dht,
                 peer_id=self.server.dht.peer.id,
-                lock=self.server.send_lock
             )
 
     def handle_found_nodes(self, message):
@@ -116,25 +121,65 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
 
 
 class DHTServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
-    def __init__(self, host_address, handler_cls):
-        socketserver.UDPServer.__init__(self, host_address, handler_cls)
+    def __init__(self, host_address, handler_cls, is_v6=False):
+        if is_v6:
+            socketserver.UDPServer.address_family = socket.AF_INET6
+        else:
+            socketserver.UDPServer.address_family = socket.AF_INET
+        socketserver.UDPServer.__init__(
+            self,
+            host_address,
+            handler_cls,
+        )
         self.send_lock = threading.Lock()
 
 
 class DHT(object):
-    def __init__(self, host, port, id_=None, boot_host=None, boot_port=None):
+
+    class NetworkError(Exception):
+        pass
+
+    def __init__(
+            self,
+            port,
+            hostv4=None,
+            hostv6=None,
+            id_=None,
+            boot_host=None,
+            boot_port=None
+    ):
         if not id_:
             id_ = random_id()
-        self.peer = Peer(str(host), port, id_)
+        self.peer = Peer(port, id_, hostv4, hostv6)
         self.data = {}
         self.buckets = BucketSet(k, id_bits, self.peer.id)
         self.rpc_ids = {}  # should probably have a lock for this
-        self.server = DHTServer(self.peer.address(), DHTRequestHandler)
-        self.server.dht = self
-        self.server_thread = threading.Thread(target=self.server.serve_forever)
-        self.server_thread.daemon = True
-        self.server_thread.start()
-        self.bootstrap(str(boot_host), boot_port)
+        if hostv4:
+            self.server4 = DHTServer(
+                self.peer.addressv4(),
+                DHTRequestHandler,
+                is_v6=False
+            )
+            self.server4.dht = self
+            self.server4_thread = threading.Thread(
+                target=self.server4.serve_forever
+            )
+            self.server4_thread.daemon = True
+            self.server4_thread.start()
+        if hostv6:
+            self.server6 = DHTServer(
+                self.peer.addressv6(),
+                DHTRequestHandler,
+                is_v6=True
+            )
+            self.server6.dht = self
+            self.server6_thread = threading.Thread(
+                target=self.server6.serve_forever
+            )
+            self.server6_thread.daemon = True
+            self.server6_thread.start()
+        if boot_host:
+            self.bootstrap(boot_host, boot_port)
 
     def iterative_find_nodes(self, key, boot_peer=None):
         shortlist = Shortlist(k, key, self.peer.id)
@@ -143,7 +188,7 @@ class DHT(object):
             rpc_id = random_id()
             self.rpc_ids[rpc_id] = shortlist
             shortlist.updated.clear()
-            boot_peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
+            boot_peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
             shortlist.updated.wait(iteration_sleep)
             shortlist = Shortlist(k, key, self.peer.id)
             shortlist.update(self.buckets.nearest_nodes(key))
@@ -156,7 +201,7 @@ class DHT(object):
                     rpc_id = random_id()
                     self.rpc_ids[rpc_id] = shortlist
                     shortlist.updated.clear()
-                    peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
+                    peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
                     shortlist.updated.wait(iteration_sleep)
             return shortlist.results()
         finally:
@@ -180,7 +225,7 @@ class DHT(object):
                     rpc_id = random_id()
                     self.rpc_ids[rpc_id] = shortlist
                     shortlist.updated.clear()
-                    peer.find_value(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
+                    peer.find_value(key, rpc_id, dht=self, peer_id=self.peer.id)
                     shortlist.updated.wait(iteration_sleep)
             return shortlist.completion_result()
         finally:
@@ -193,8 +238,19 @@ class DHT(object):
             ))
 
     def bootstrap(self, boot_host, boot_port):
-        if boot_host and boot_port:
-            boot_peer = Peer(boot_host, boot_port, 0)
+        addr = socket.getaddrinfo(boot_host, boot_port)[0][4][0]
+        ipaddr = ipaddress.ip_address(addr)
+        if isinstance(ipaddr, ipaddress.IPv6Address):
+            boot_peer = Peer(boot_port, 0, hostv6=str(ipaddr))
+        else:
+            boot_peer = Peer(boot_port, 0, hostv4=str(ipaddr))
+        self.iterative_find_nodes(self.peer.id, boot_peer=boot_peer)
+        tries = 0
+        while len(self.buckets.nearest_nodes(self.peer.id)) < 1:
+            tries += 1
+            if tries > 2:
+                raise DHT.NetworkError("Cannot boot DHT")
+            time.sleep(1)
             self.iterative_find_nodes(self.peer.id, boot_peer=boot_peer)
 
     def __getitem__(self, key):
@@ -208,7 +264,4 @@ class DHT(object):
         nearest_nodes = self.iterative_find_nodes(hashed_key)
         self.data[hashed_key] = value
         for node in nearest_nodes:
-            node.store(hashed_key, value, socket=self.server.socket, peer_id=self.peer.id)
-        
-    def tick():
-        pass
+            node.store(hashed_key, value, dht=self, peer_id=self.peer.id)
