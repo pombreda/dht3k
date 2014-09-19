@@ -143,8 +143,8 @@ class DHT(object):
             boot_peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
         start = time.time()
         try:
-            while (not shortlist.complete()):
-                print("itr")
+            while (not shortlist.complete()) or boot_peer:
+                boot_peer = None
                 nearest_nodes = shortlist.get_next_iteration(alpha)
                 for peer in nearest_nodes:
                     shortlist.mark(peer)
@@ -202,8 +202,7 @@ class DHT(object):
     def __setitem__(self, key, value):
         hashed_key = hash_function(msgpack.dumps(key))
         nearest_nodes = self.iterative_find_nodes(hashed_key)
-        if not nearest_nodes:
-            self.data[hashed_key] = value
+        self.data[hashed_key] = value
         for node in nearest_nodes:
             node.store(hashed_key, value, socket=self.server.socket, peer_id=self.peer.id)
         

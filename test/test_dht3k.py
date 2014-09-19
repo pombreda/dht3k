@@ -42,7 +42,6 @@ class TestPyDht(object):
         for x in range(30):
             x += 1
             assert self.dht2[x] == x
-        assert False
 
     def test_find_set_str(self):
         """ Testing init """
