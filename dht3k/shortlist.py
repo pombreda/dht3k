@@ -6,11 +6,12 @@ from .hashing import bytes2int
 
 
 class Shortlist(object):
-    def __init__(self, k, key):
-        self.k = k
-        self.key = key
-        self.list = list()
-        self.lock = threading.Lock()
+    def __init__(self, k, key, my_id):
+        self.k                = k
+        self.key              = key
+        self.my_id            = my_id
+        self.list             = list()
+        self.lock             = threading.Lock()
         self.completion_value = futures.Future()
         self.completion_value.set_running_or_notify_cancel()
 
@@ -26,7 +27,11 @@ class Shortlist(object):
         self.complete()
 
     def _update_one(self, node):
-        if node.id == self.key or self.completion_value.done():
+        if (
+            node.id == self.key or
+            node.id == self.my_id or
+            self.completion_value.done()
+        ):
             return
         with self.lock:
             for i in range(len(self.list)):

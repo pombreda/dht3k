@@ -135,7 +135,7 @@ class DHT(object):
         self.bootstrap(str(boot_host), boot_port)
 
     def iterative_find_nodes(self, key, boot_peer=None):
-        shortlist = Shortlist(k, key)
+        shortlist = Shortlist(k, key, self.peer.id)
         shortlist.update(self.buckets.nearest_nodes(key, limit=alpha))
         if boot_peer:
             rpc_id = random_id()
@@ -163,7 +163,7 @@ class DHT(object):
             print("find_nodes: %.5fs" % (end - start))
 
     def iterative_find_value(self, key):
-        shortlist = Shortlist(k, key)
+        shortlist = Shortlist(k, key, self.peer.id)
         shortlist.update(self.buckets.nearest_nodes(key))
         if len(shortlist.list) > 1:
             import ipdb; ipdb.set_trace()
