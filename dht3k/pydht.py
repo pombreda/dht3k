@@ -164,7 +164,9 @@ class DHT(object):
 
     def iterative_find_value(self, key):
         shortlist = Shortlist(k, key)
-        shortlist.update(self.buckets.nearest_nodes(key, limit=alpha))
+        shortlist.update(self.buckets.nearest_nodes(key))
+        if len(shortlist.list) > 1:
+            import ipdb; ipdb.set_trace()
         start = time.time()
         try:
             while (not shortlist.complete()):

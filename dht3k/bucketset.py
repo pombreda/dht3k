@@ -43,5 +43,5 @@ class BucketSet(object):
                 ipeer = bytes2int(peer[2])
                 return ikey ^ ipeer
             peers = (peer for bucket in self.buckets for peer in bucket)
-            best_peers = heapq.nsmallest(self.bucket_size, peers, keyfunction)
+            best_peers = heapq.nsmallest(num_results, peers, keyfunction)
             return [Peer(*peer) for peer in best_peers]
