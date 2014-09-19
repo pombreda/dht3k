@@ -51,9 +51,8 @@ class Shortlist(object):
                     self.list.insert(i, (node.astuple(), False))
                     self.list = self.list[:self.k]
                     break
-            else:
-                if len(self.list) < self.k:
-                    self.list.append((node.astuple(), False))
+            if len(self.list) < self.k:
+                self.list.append((node.astuple(), False))
 
     def mark(self, node):
         with self.lock:

@@ -4,13 +4,13 @@ import six
 
 id_bytes = 32
 
-if six.PY3:
+if six.PY3:  # pragma: no cover
     def bytes2int(data):
         return int.from_bytes(data, 'big')  # Network oder (important)
 
     def int2bytes(value):
         return value.to_bytes(id_bytes, 'big')  # Network oder (important)
-else:
+else:  # pragma: no cover
     def bytes2int(str):
         return int(str.encode('hex'), 16)
 

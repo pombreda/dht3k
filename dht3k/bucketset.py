@@ -1,5 +1,6 @@
 import heapq
 import threading
+import collections
 
 from .peer    import Peer
 from .hashing import bytes2int
@@ -20,23 +21,33 @@ class BucketSet(object):
     def __init__(self, bucket_size, buckets, id_):
         self.id = id_
         self.bucket_size = bucket_size
-        self.buckets = [list() for _ in range(buckets)]
+        self.buckets = [collections.OrderedDict() for _ in range(buckets)]
         self.lock = threading.Lock()
 
     def insert(self, peer):
+        assert isinstance(peer, Peer)
         if peer.id != self.id:
             bucket_number = largest_differing_bit(self.id, peer.id)
             peer_tuple = peer.astuple()
             with self.lock:
                 bucket = self.buckets[bucket_number]
-                if peer_tuple in bucket:
-                    bucket.pop(bucket.index(peer_tuple))
+                old_peer = None
+                try:
+                    old_peer = Peer(*bucket[peer.id])
+                except KeyError:
+                    pass
+                if old_peer:
+                    del bucket[peer.id]
+                    if not peer.hostv4:
+                        peer.hostv4 = old_peer.hostv4
+                    if not peer.hostv6:
+                        peer.hostv6 = old_peer.hostv6
                 elif len(bucket) >= self.bucket_size:
-                    bucket.pop(0)
-                bucket.append(peer_tuple)
+                    bucket.popitem(0)
+                bucket[peer.id] = peer_tuple
 
     def peers(self):
-        return (peer for bucket in self.buckets for peer in bucket)
+        return (peer for bucket in self.buckets for peer in bucket.values())
 
     def nearest_nodes(self, key, limit=None):
         num_results = limit if limit else self.bucket_size

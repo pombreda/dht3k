@@ -1,7 +1,7 @@
 import msgpack
-import random
 import socket
 import ipaddress
+import six
 import concurrent.futures as futures
 try:
     import socketserver
@@ -15,6 +15,7 @@ from .hashing   import hash_function, random_id, id_bytes, int2bytes
 from .peer      import Peer
 from .shortlist import Shortlist
 from .const     import Message
+from .helper    import sixunicode
 
 k = 20
 alpha = 3
@@ -56,7 +57,9 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             pass
 
     def peer_from_client_address(self, client_address, id_):
-        ipaddr = ipaddress.ip_address(client_address[0])
+        ipaddr = ipaddress.ip_address(
+            sixunicode(client_address[0])
+        )
         if isinstance(ipaddr, ipaddress.IPv6Address):
             return Peer(client_address[1], id_, hostv6=ipaddr)
         else:
@@ -89,8 +92,9 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             )
         else:
             nearest_nodes = self.server.dht.buckets.nearest_nodes(id_)
-            if not nearest_nodes:
-                nearest_nodes.append(self.server.dht.peer)
+            # Propagate other IP address. If communication happend via v4 vs v6
+            # and vice versa
+            nearest_nodes.append(self.server.dht.peer)
             nearest_nodes = [
                 nearest_peer.astuple() for nearest_peer in nearest_nodes
             ]
@@ -190,8 +194,6 @@ class DHT(object):
             shortlist.updated.clear()
             boot_peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
             shortlist.updated.wait(iteration_sleep)
-            shortlist = Shortlist(k, key, self.peer.id)
-            shortlist.update(self.buckets.nearest_nodes(key))
         start = time.time()
         try:
             while (not shortlist.complete()):
@@ -207,10 +209,11 @@ class DHT(object):
         finally:
             end = time.time()
             # Convert to logging
-            print("find_nodes: %.5fs (%d, %d)" % (
+            print("find_nodes: %.5fs (%d, %d, %d)" % (
                 (end - start),
                 len(shortlist.list),
-                len(self.buckets.nearest_nodes(key)),
+                len([it for it in shortlist.list if it[1]]),
+                len(list(self.buckets.peers())),
             ))
 
     def iterative_find_value(self, key):
@@ -231,27 +234,28 @@ class DHT(object):
         finally:
             end = time.time()
             # Convert to logging
-            print("find_value: %.5fs (%d, %d)" % (
+            print("find_value: %.5fs (%d, %d, %d)" % (
                 (end - start),
                 len(shortlist.list),
-                len(self.buckets.nearest_nodes(key)),
+                len([it for it in shortlist.list if it[1]]),
+                len(list(self.buckets.peers())),
             ))
 
     def bootstrap(self, boot_host, boot_port):
         addr = socket.getaddrinfo(boot_host, boot_port)[0][4][0]
-        ipaddr = ipaddress.ip_address(addr)
+        ipaddr = ipaddress.ip_address(sixunicode(addr))
         if isinstance(ipaddr, ipaddress.IPv6Address):
             boot_peer = Peer(boot_port, 0, hostv6=str(ipaddr))
         else:
             boot_peer = Peer(boot_port, 0, hostv4=str(ipaddr))
-        self.iterative_find_nodes(self.peer.id, boot_peer=boot_peer)
+        self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
         tries = 0
         while len(self.buckets.nearest_nodes(self.peer.id)) < 1:
             tries += 1
             if tries > 2:
                 raise DHT.NetworkError("Cannot boot DHT")
-            time.sleep(1)
-            self.iterative_find_nodes(self.peer.id, boot_peer=boot_peer)
+            time.sleep(3)
+            self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
 
     def __getitem__(self, key):
         hashed_key = hash_function(msgpack.dumps(key))

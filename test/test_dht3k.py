@@ -75,38 +75,40 @@ class TestPyDht(object):
         time.sleep(0.2)
         assert self.dht2["bla"] == 0
 
-    # def test_large_network(self):
-    #     """ Testing a larger network """
-    #     dhts = []
-    #     try:
-    #         for x in range(100):
-    #             try:
-    #                 dhts.append(DHT(
-    #                     "::1",
-    #                     x + 30000,
-    #                     boot_host="::1",
-    #                     boot_port=4165,
-    #                 ))
-    #             except DHT.NetworkError:
-    #                 pass
-    #         # self.dht2["baum"] = b"ast"
-    #         # for dht in dhts:
-    #         #     assert dht["baum"] == b"ast"
-    #         for x in range(10):
-    #             dht1 = random.choice(dhts)
-    #             dht2 = random.choice(dhts)
-    #             for i in range(32):
-    #                 # Force boot maintanance
-    #                 dht1.iterative_find_nodes(hashing.int2bytes(2 ** i))
-    #                 dht2.iterative_find_nodes(hashing.int2bytes(2 ** i))
-    #             x += 1
-    #             dht1[x] = x
-    #             time.sleep(0.2)
-    #             assert dht2[x] == x
+    def test_large_network(self):
+        """ Testing a larger network """
+        dhts = []
+        try:
+            for x in range(1000):
+                try:
+                    dhts.append(DHT(
+                        x + 30000,
+                        "127.0.0.1",
+                        "::1",
+                        boot_host="::1",
+                        boot_port=4165,
+                    ))
+                except DHT.NetworkError:
+                    pass
+            for _ in range(4):
+                for dht in dhts:
+                    dht.iterative_find_nodes(hashing.random_id())
+            self.dht2["baum"] = b"ast"
+            for dht in dhts:
+                assert dht["baum"] == b"ast"
+            for x in range(30):
+                dht1 = random.choice(dhts)
+                dht2 = random.choice(dhts)
+                x += 1
+                dht1[x] = x
+                time.sleep(0.2)
+                assert dht2[x] == x
 
-    #     finally:
-    #         for dht in dhts:
-    #             dht.server.shutdown()
-    #             dht.server.server_close()
+        finally:
+            for dht in dhts:
+                dht.server4.shutdown()
+                dht.server4.server_close()
+                dht.server6.shutdown()
+                dht.server6.server_close()
 
 # pylama:ignore=w0201

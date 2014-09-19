@@ -1,20 +1,25 @@
-import hashlib
 import msgpack
 import ipaddress
+import six
 
 from .hashing import hash_function
 from .const   import Message
+from .helper  import sixunicode
 
 
 class Peer(object):
     ''' DHT Peer Information'''
     def __init__(self, port, id_, hostv4=None, hostv6=None):
         if hostv4:
-            self.hostv4 = ipaddress.ip_address(hostv4)
+            self.hostv4 = ipaddress.ip_address(
+                sixunicode(hostv4)
+            )
         else:
             self.hostv4 = None
         if hostv6:
-            self.hostv6 = ipaddress.ip_address(hostv6)
+            self.hostv6 = ipaddress.ip_address(
+                sixunicode(hostv6)
+            )
         else:
             self.hostv6 = None
         self.port = port
