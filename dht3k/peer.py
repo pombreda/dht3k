@@ -66,13 +66,14 @@ class Peer(object):
 
     def ping(self, dht, peer_id):
         message = {
-            Message.MESSAGE_TYPE: Message.PING
+            Message.MESSAGE_TYPE: Message.PING,
+            Message.ALL_ADDR: self.astuple(),
         }
         self._sendmessage(message, dht, peer_id=peer_id)
 
     def pong(self, dht, peer_id):
         message = {
-            Message.MESSAGE_TYPE: Message.PONG
+            Message.MESSAGE_TYPE: Message.PONG,
         }
         self._sendmessage(message, dht, peer_id=peer_id)
 

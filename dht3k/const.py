@@ -16,3 +16,4 @@ class Message(object):
     VALUE         = 10
     RPC_ID        = 11
     NEAREST_NODES = 12
+    ALL_ADDR      = 13

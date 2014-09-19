@@ -1,9 +1,10 @@
 import heapq
 import threading
 import collections
+import time
 
 from .peer    import Peer
-from .hashing import bytes2int
+from .hashing import bytes2int, random_id
 
 
 def largest_differing_bit(value1, value2):
@@ -24,7 +25,7 @@ class BucketSet(object):
         self.buckets = [collections.OrderedDict() for _ in range(buckets)]
         self.lock = threading.Lock()
 
-    def insert(self, peer):
+    def insert(self, peer, server):
         assert isinstance(peer, Peer)
         if peer.id != self.id:
             bucket_number = largest_differing_bit(self.id, peer.id)
@@ -42,7 +43,10 @@ class BucketSet(object):
                         peer.hostv4 = old_peer.hostv4
                     if not peer.hostv6:
                         peer.hostv6 = old_peer.hostv6
+                    peer_tuple = peer.astuple()
                 elif len(bucket) >= self.bucket_size:
+                    pop_peer = Peer(*bucket.popitem(0)[1])
+                    pop_peer.ping(server.dht, server.dht.peer.id)
                     bucket.popitem(0)
                 bucket[peer.id] = peer_tuple
 

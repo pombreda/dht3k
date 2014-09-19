@@ -79,7 +79,7 @@ class TestPyDht(object):
         """ Testing a larger network """
         dhts = []
         try:
-            for x in range(1000):
+            for x in range(100):
                 try:
                     dhts.append(DHT(
                         x + 30000,

@@ -50,7 +50,10 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
                 self.client_address,
                 peer_id
             )
-            self.server.dht.buckets.insert(new_peer)
+            self.server.dht.buckets.insert(
+                new_peer,
+                self.server
+            )
         except KeyError:
             pass
         except msgpack.UnpackValueError:
@@ -66,15 +69,21 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             return Peer(client_address[1], id_, hostv4=ipaddr)
 
     def handle_ping(self, message):
+        print("ping")
         id_ = message[Message.PEER_ID]
-        peer = self.peer_from_client_address(self.client_address, id_)
-        peer.pong(
+        cpeer = self.peer_from_client_address(self.client_address, id_)
+        cpeer.pong(
+            dht=self.server.dht,
+            peer_id=self.server.dht.peer.id,
+        )
+        apeer = Peer(*message[Message.ALL_ADDR])
+        apeer.pong(
             dht=self.server.dht,
             peer_id=self.server.dht.peer.id,
         )
 
     def handle_pong(self, message):
-        pass
+        print("pong")
 
     def handle_find(self, message, find_value=False):
         key = message[Message.ID]
@@ -92,9 +101,8 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             )
         else:
             nearest_nodes = self.server.dht.buckets.nearest_nodes(id_)
-            # Propagate other IP address. If communication happend via v4 vs v6
-            # and vice versa
-            nearest_nodes.append(self.server.dht.peer)
+            if not nearest_nodes:
+                nearest_nodes.append(self.server.dht.peer)
             nearest_nodes = [
                 nearest_peer.astuple() for nearest_peer in nearest_nodes
             ]
