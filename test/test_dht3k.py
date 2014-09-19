@@ -62,4 +62,29 @@ class TestPyDht(object):
         time.sleep(0.2)
         assert self.dht2[0] == b"haha"
 
+    def test_null_value(self):
+        """ Testing init """
+        self.dht1[b"bla"] = 0
+        time.sleep(0.2)
+        assert self.dht2["bla"] == 0
+
+    def test_large_network(self):
+        """ Testing a larger network """
+        dhts = []
+        try:
+            for x in range(100):
+                dhts.append(DHT(
+                    "localhost",
+                    x + 30000,
+                    boot_host="localhost",
+                    boot_port=4165,
+                ))
+            self.dht2["baum"] = b"ast"
+            for dht in dhts:
+                assert dht["baum"] == b"ast"
+        finally:
+            for dht in dhts:
+                dht.server.shutdown()
+                dht.server.server_close()
+
 # pylama:ignore=w0201

@@ -20,6 +20,8 @@ alpha = 3
 id_bits = id_bytes * 8
 iteration_sleep = 1
 
+Shortlist.iteration_sleep = iteration_sleep
+
 
 class DHTRequestHandler(socketserver.BaseRequestHandler):
 
@@ -136,37 +138,15 @@ class DHT(object):
 
     def iterative_find_nodes(self, key, boot_peer=None):
         shortlist = Shortlist(k, key, self.peer.id)
-        shortlist.update(self.buckets.nearest_nodes(key, limit=alpha))
+        shortlist.update(self.buckets.nearest_nodes(key))
         if boot_peer:
             rpc_id = random_id()
             self.rpc_ids[rpc_id] = shortlist
+            shortlist.updated.clear()
             boot_peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
-        start = time.time()
-        try:
-            while (not shortlist.complete()) or boot_peer:
-                boot_peer = None
-                nearest_nodes = shortlist.get_next_iteration(alpha)
-                for peer in nearest_nodes:
-                    shortlist.mark(peer)
-                    rpc_id = random_id()
-                    self.rpc_ids[rpc_id] = shortlist
-                    peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
-                try:
-                    shortlist.completion_value.result(timeout=iteration_sleep)
-                    return shortlist.results()
-                except futures.TimeoutError:
-                    pass
-            return shortlist.results()
-        finally:
-            end = time.time()
-            # Convert to logging
-            print("find_nodes: %.5fs" % (end - start))
-
-    def iterative_find_value(self, key):
-        shortlist = Shortlist(k, key, self.peer.id)
-        shortlist.update(self.buckets.nearest_nodes(key))
-        if len(shortlist.list) > 1:
-            import ipdb; ipdb.set_trace()
+            shortlist.updated.wait(iteration_sleep)
+            shortlist = Shortlist(k, key, self.peer.id)
+            shortlist.update(self.buckets.nearest_nodes(key))
         start = time.time()
         try:
             while (not shortlist.complete()):
@@ -175,17 +155,42 @@ class DHT(object):
                     shortlist.mark(peer)
                     rpc_id = random_id()
                     self.rpc_ids[rpc_id] = shortlist
+                    shortlist.updated.clear()
+                    peer.find_node(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
+                    shortlist.updated.wait(iteration_sleep)
+            return shortlist.results()
+        finally:
+            end = time.time()
+            # Convert to logging
+            print("find_nodes: %.5fs (%d, %d)" % (
+                (end - start),
+                len(shortlist.list),
+                len(self.buckets.nearest_nodes(key)),
+            ))
+
+    def iterative_find_value(self, key):
+        shortlist = Shortlist(k, key, self.peer.id)
+        shortlist.update(self.buckets.nearest_nodes(key))
+        start = time.time()
+        try:
+            while (not shortlist.complete()):
+                nearest_nodes = shortlist.get_next_iteration(alpha)
+                for peer in nearest_nodes:
+                    shortlist.mark(peer)
+                    rpc_id = random_id()
+                    self.rpc_ids[rpc_id] = shortlist
+                    shortlist.updated.clear()
                     peer.find_value(key, rpc_id, socket=self.server.socket, peer_id=self.peer.id)
-                try:
-                    shortlist.completion_value.result(timeout=iteration_sleep)
-                    return shortlist.completion_result()
-                except futures.TimeoutError:
-                    pass
+                    shortlist.updated.wait(iteration_sleep)
             return shortlist.completion_result()
         finally:
             end = time.time()
             # Convert to logging
-            print("find_value: %.5fs" % (end - start))
+            print("find_value: %.5fs (%d, %d)" % (
+                (end - start),
+                len(shortlist.list),
+                len(self.buckets.nearest_nodes(key)),
+            ))
 
     def bootstrap(self, boot_host, boot_port):
         if boot_host and boot_port:
@@ -196,10 +201,7 @@ class DHT(object):
         hashed_key = hash_function(msgpack.dumps(key))
         if hashed_key in self.data:
             return self.data[hashed_key]
-        result = self.iterative_find_value(hashed_key)
-        if result:
-            return result
-        raise KeyError
+        return self.iterative_find_value(hashed_key)
 
     def __setitem__(self, key, value):
         hashed_key = hash_function(msgpack.dumps(key))

@@ -4,8 +4,9 @@ import concurrent.futures as futures
 from .peer    import Peer
 from .hashing import bytes2int
 
-
 class Shortlist(object):
+    iteration_sleep = 1
+
     def __init__(self, k, key, my_id):
         self.k                = k
         self.key              = key
@@ -14,17 +15,22 @@ class Shortlist(object):
         self.lock             = threading.Lock()
         self.completion_value = futures.Future()
         self.completion_value.set_running_or_notify_cancel()
+        self.updated          = threading.Event()
 
     def set_complete(self, value):
+        self.updated.set()
         self.completion_value.set_result(value)
 
     def completion_result(self):
-        return self.completion_value.result()
+        try:
+            return self.completion_value.result(Shortlist.iteration_sleep)
+        except futures.TimeoutError:
+            raise KeyError("Not found due network timeout")
 
     def update(self, nodes):
         for node in nodes:
             self._update_one(node)
-        self.complete()
+        self.updated.set()
 
     def _update_one(self, node):
         if (
@@ -61,8 +67,6 @@ class Shortlist(object):
             for node, completed in self.list:
                 if not completed:
                     return False
-            if not self.completion_value.done():
-                self.completion_value.set_result(False)
             return True
 
     def get_next_iteration(self, alpha):
