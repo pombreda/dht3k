@@ -76,11 +76,14 @@ class Shortlist(object):
         with self.lock:
             for node, completed in self.list:
                 if not completed:
-                    next_iteration.append(Peer(*node))
+                    next_iteration.append(Peer(*node, is_bytes=True))
                     if len(next_iteration) >= alpha:
                         break
         return next_iteration
 
     def results(self):
         with self.lock:
-            return [Peer(*node) for (node, completed) in self.list]
+            return [Peer(
+                *node,
+                is_bytes=True
+            ) for (node, completed) in self.list]

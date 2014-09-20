@@ -25,7 +25,7 @@ class BucketSet(object):
         self.buckets = [collections.OrderedDict() for _ in range(buckets)]
         self.lock = threading.Lock()
 
-    def insert(self, peer, server):
+    def insert(self, peer, server, from_pong=False):
         assert isinstance(peer, Peer)
         if peer.id != self.id:
             bucket_number = largest_differing_bit(self.id, peer.id)
@@ -34,7 +34,10 @@ class BucketSet(object):
                 bucket = self.buckets[bucket_number]
                 old_peer = None
                 try:
-                    old_peer = Peer(*bucket[peer.id])
+                    old_peer = Peer(
+                        *bucket[peer.id],
+                        is_bytes=True
+                    )
                 except KeyError:
                     pass
                 if old_peer:
@@ -43,12 +46,18 @@ class BucketSet(object):
                         peer.hostv4 = old_peer.hostv4
                     if not peer.hostv6:
                         peer.hostv6 = old_peer.hostv6
-                    peer_tuple = peer.astuple()
+                    bucket[peer.id] = peer.astuple()
                 elif len(bucket) >= self.bucket_size:
-                    pop_peer = Peer(*bucket.popitem(0)[1])
-                    pop_peer.ping(server.dht, server.dht.peer.id)
-                    bucket.popitem(0)
-                bucket[peer.id] = peer_tuple
+                    if not from_pong:
+                        pop_peer = Peer(
+                            *bucket.popitem(0)[1],
+                            is_bytes=True
+                        )
+                        pop_peer.ping(server.dht, server.dht.peer.id)
+                        bucket[peer.id] = peer_tuple
+                    print("from pong")
+                else:
+                    bucket[peer.id] = peer_tuple
 
     def peers(self):
         return (peer for bucket in self.buckets for peer in bucket.values())
@@ -62,4 +71,7 @@ class BucketSet(object):
                 return ikey ^ ipeer
             peers = self.peers()
             best_peers = heapq.nsmallest(num_results, peers, keyfunction)
-            return [Peer(*peer) for peer in best_peers]
+            return [Peer(
+                *peer,
+                is_bytes=True
+            ) for peer in best_peers]

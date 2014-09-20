@@ -52,7 +52,8 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             )
             self.server.dht.buckets.insert(
                 new_peer,
-                self.server
+                self.server,
+                message_type == Message.PONG
             )
         except KeyError:
             pass
@@ -76,7 +77,10 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             dht=self.server.dht,
             peer_id=self.server.dht.peer.id,
         )
-        apeer = Peer(*message[Message.ALL_ADDR])
+        apeer = Peer(
+            *message[Message.ALL_ADDR],
+            is_bytes=True
+        )
         apeer.pong(
             dht=self.server.dht,
             peer_id=self.server.dht.peer.id,
@@ -118,7 +122,10 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
         rpc_id = message[Message.RPC_ID]
         shortlist = self.server.dht.rpc_ids[rpc_id]
         del self.server.dht.rpc_ids[rpc_id]
-        nearest_nodes = [Peer(*peer) for peer in message[Message.NEAREST_NODES]]
+        nearest_nodes = [Peer(
+            *peer,
+            is_bytes=True
+        ) for peer in message[Message.NEAREST_NODES]]
         shortlist.update(nearest_nodes)
 
     def handle_found_value(self, message):
@@ -238,6 +245,8 @@ class DHT(object):
                     shortlist.updated.clear()
                     peer.find_value(key, rpc_id, dht=self, peer_id=self.peer.id)
                     shortlist.updated.wait(iteration_sleep)
+                    if shortlist.completion_value.done():
+                        return shortlist.completion_result()
             return shortlist.completion_result()
         finally:
             end = time.time()

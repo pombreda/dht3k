@@ -9,16 +9,16 @@ from .helper  import sixunicode
 
 class Peer(object):
     ''' DHT Peer Information'''
-    def __init__(self, port, id_, hostv4=None, hostv6=None):
+    def __init__(self, port, id_, hostv4=None, hostv6=None, is_bytes=False):
         if hostv4:
             self.hostv4 = ipaddress.ip_address(
-                sixunicode(hostv4)
+                sixunicode(hostv4, is_bytes)
             )
         else:
             self.hostv4 = None
         if hostv6:
             self.hostv6 = ipaddress.ip_address(
-                sixunicode(hostv6)
+                sixunicode(hostv6, is_bytes)
             )
         else:
             self.hostv6 = None
