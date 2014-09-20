@@ -48,14 +48,17 @@ class BucketSet(object):
                         peer.hostv6 = old_peer.hostv6
                     bucket[peer.id] = peer.astuple()
                 elif len(bucket) >= self.bucket_size:
-                    if not from_pong:
+                    if from_pong:
+                        bucket.popitem(0)
+                        bucket[peer.id] = peer_tuple
+                        print("from pong")
+                    else:
                         pop_peer = Peer(
                             *bucket.popitem(0)[1],
                             is_bytes=True
                         )
                         pop_peer.ping(server.dht, server.dht.peer.id)
                         bucket[peer.id] = peer_tuple
-                    print("from pong")
                 else:
                     bucket[peer.id] = peer_tuple
 

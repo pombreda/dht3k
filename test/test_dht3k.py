@@ -94,7 +94,6 @@ class TestPyDht(object):
                 for dht in dhts:
                     dht.iterative_find_nodes(hashing.random_id())
             self.dht2["baum"] = b"ast"
-            import ipdb; ipdb.set_trace()
             for dht in dhts:
                 assert dht["baum"] == b"ast"
             for x in range(30):
@@ -107,6 +106,7 @@ class TestPyDht(object):
 
         finally:
             for dht in dhts:
+                print([len(a) for a in dht.buckets.buckets])
                 dht.server4.shutdown()
                 dht.server4.server_close()
                 dht.server6.shutdown()
