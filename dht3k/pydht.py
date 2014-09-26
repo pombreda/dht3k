@@ -25,30 +25,6 @@ Shortlist.iteration_sleep = iteration_sleep
 # TODO: Maintainance thread / rpc_list cleanup
 
 
-def has_dual_stack(sock=None):
-    """Return True if kernel allows creating a socket which is able to
-    listen for both IPv4 and IPv6 connections.
-    If *sock* is provided the check is made against it.
-    """
-    try:
-        socket.AF_INET6  # noqa
-        socket.IPPROTO_IPV6  # noqa
-        socket.IPV6_V6ONLY  # noqa
-    except AttributeError:
-        return False
-    try:
-        if sock is not None:
-            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
-            return True
-        else:
-            sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-            with contextlib.closing(sock):
-                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
-                return True
-    except socket.error:
-        return False
-
-
 class DHT(object):
 
     class NetworkError(Exception):
@@ -81,8 +57,9 @@ class DHT(object):
             self.hostv6 = None
         else:
             self.hostv6  = ipaddress.ip_address(hostv6)
-        self.dual_stack = False
-        if hostv6 is not None or self.dual_stack:
+        # Detecting dual_stack sockets seems not to work on some OSs
+        # so we always use two sockets
+        if hostv6 is not None:
             self.server6 = DHTServer(
                 (listen_hostv6, port),
                 DHTRequestHandler,
@@ -94,8 +71,7 @@ class DHT(object):
             )
             self.server6_thread.daemon = True
             self.server6_thread.start()
-            self.dual_stack = has_dual_stack(self.server6.socket)
-        if hostv4 is not None and not self.dual_stack:
+        if hostv4 is not None:
             self.server4 = DHTServer(
                 (listen_hostv4, port),
                 DHTRequestHandler,

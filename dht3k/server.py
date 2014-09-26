@@ -163,5 +163,17 @@ class DHTServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
             self,
             host_address,
             handler_cls,
+            False,
         )
+        if is_v6:
+            try:
+                self.socket.setsockopt(
+                    socket.IPPROTO_IPV6,
+                    socket.IPV6_V6ONLY,
+                    False
+                )
+            except socket.error:
+                pass
+        self.server_bind()
+        self.server_activate()
         self.send_lock = threading.Lock()
