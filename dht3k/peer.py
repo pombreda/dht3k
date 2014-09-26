@@ -64,17 +64,21 @@ class Peer(object):
                 (str(self.hostv6), self.port)
             )
 
-    def ping(self, dht, peer_id):
+    def ping(self, dht, peer_id, rpc_id=None):
         message = {
             Message.MESSAGE_TYPE: Message.PING,
             Message.ALL_ADDR: self.astuple(),
         }
+        if rpc_id:
+            message[Message.RPC_ID] = rpc_id
         self._sendmessage(message, dht, peer_id=peer_id)
 
-    def pong(self, dht, peer_id):
+    def pong(self, dht, peer_id, rpc_id=None):
         message = {
             Message.MESSAGE_TYPE: Message.PONG,
         }
+        if rpc_id:
+            message[Message.RPC_ID] = rpc_id
         self._sendmessage(message, dht, peer_id=peer_id)
 
     def store(self, key, value, dht, peer_id):
