@@ -3,3 +3,4 @@ msgpack-python
 six
 futures
 ipaddress
+mock

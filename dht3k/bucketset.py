@@ -5,7 +5,6 @@ import time
 
 from .peer    import Peer
 from .hashing import bytes2int, random_id
-from .server  import DHTServer
 
 
 def largest_differing_bit(value1, value2):
@@ -28,7 +27,6 @@ class BucketSet(object):
 
     def insert(self, peer, server, from_pong=False):
         assert isinstance(peer, Peer)
-        assert isinstance(server, DHTServer)
         if peer.id != self.id:
             bucket_number = largest_differing_bit(self.id, peer.id)
             peer_tuple = peer.astuple()
@@ -61,6 +59,7 @@ class BucketSet(object):
                             )
                         )
                         bucket = collections.OrderedDict(items)
+                        self.buckets[bucket_number] = bucket
                         print("from pong")
                     else:
                         pop_peer = Peer(
@@ -68,7 +67,7 @@ class BucketSet(object):
                             is_bytes=True
                         )
                         rpc_id = random_id()
-                        server.dht.rpc_ids[rpc_id] = time.time()
+                        server.dht.rpc_ids[rpc_id] = [time.time()]
                         pop_peer.ping(
                             server.dht,
                             server.dht.peer.id,

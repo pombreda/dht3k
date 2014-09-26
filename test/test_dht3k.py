@@ -14,12 +14,20 @@ class TestPyDht(object):
 
     def setup(self):
         """ Setup """
-        time.sleep(0.3)
-        self.dht1 = DHT(4165, "127.0.0.1", "::1")
+        time.sleep(0.4)
+        self.dht1 = DHT(
+            4165,
+            "127.0.0.1",
+            "::1",
+            listen_hostv4="127.0.0.1",
+            listen_hostv6="::1",
+        )
         self.dht2 = DHT(
             4166,
             "127.0.0.1",
             "::1",
+            listen_hostv4="127.0.0.1",
+            listen_hostv6="::1",
             boot_host="::1",
             boot_port=4165
         )
@@ -28,6 +36,7 @@ class TestPyDht(object):
         """ Teardown """
         self.dht1.close()
         self.dht2.close()
+        time.sleep(0.4)
 
     def test_find_set(self):
         """ Testing init """
@@ -81,6 +90,8 @@ class TestPyDht(object):
                         x + 30000,
                         "127.0.0.1",
                         "::1",
+                        listen_hostv4="127.0.0.1",
+                        listen_hostv6="::1",
                         boot_host="::1",
                         boot_port=4165,
                     ))

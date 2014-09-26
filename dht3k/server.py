@@ -17,14 +17,16 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         try:
-            message = msgpack.loads(self.request[0].strip())
+            message      = msgpack.loads(self.request[0].strip())
             message_type = message[Message.MESSAGE_TYPE]
-            is_pong = False
+            is_pong      = False
+            is_rpc_ping  = False
+
             if message_type == Message.PING:
                 self.handle_ping(message)
             elif message_type == Message.PONG:
                 is_pong = True
-                self.handle_pong(message)
+                is_rpc_ping = self.handle_pong(message)
             elif message_type == Message.FIND_NODE:
                 self.handle_find(message)
             elif message_type == Message.FIND_VALUE:
@@ -36,7 +38,8 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             elif message_type == Message.STORE:
                 self.handle_store(message)
             peer_id = message[Message.PEER_ID]
-            if is_pong and Message.RPC_ID not in message:
+            # Prevent DoS attack: flushing of bucket
+            if is_pong and not is_rpc_ping:
                 return
             new_peer = self.peer_from_client_address(
                 self.client_address,
@@ -64,27 +67,41 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
     def handle_ping(self, message):
         print("ping")
         id_ = message[Message.PEER_ID]
-        # TODO Only ping unique addresses
+        try:
+            rpc_id = message[Message.RPC_ID]
+        except KeyError:
+            rpc_id = None
+
         cpeer = self.peer_from_client_address(self.client_address, id_)
-        cpeer.pong(
-            dht=self.server.dht,
-            peer_id=self.server.dht.peer.id,
-        )
         apeer = Peer(
             *message[Message.ALL_ADDR],
             is_bytes=True
         )
         apeer.pong(
-            dht=self.server.dht,
-            peer_id=self.server.dht.peer.id,
+            dht     = self.server.dht,
+            peer_id = self.server.dht.peer.id,
+            cpeer   = cpeer,
+            rpc_id  = rpc_id,
+        )
+        if    (cpeer.addressv4 == apeer.addressv4 or
+               cpeer.addressv6 == apeer.addressv6):
+            return
+        cpeer.pong(
+            dht     = self.server.dht,
+            peer_id = self.server.dht.peer.id,
+            cpeer   = cpeer,
+            rpc_id  = rpc_id,
         )
 
     def handle_pong(self, message):
         try:
             rpc_id = message[Message.RPC_ID]
-            del self.dht.rpc_ids[rpc_id]
+            self.server.dht.rpc_ids[rpc_id].append(
+                message
+            )
+            return True
         except KeyError:
-            pass
+            return False
 
     def handle_find(self, message, find_value=False):
         key = message[Message.ID]

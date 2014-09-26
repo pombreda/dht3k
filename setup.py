@@ -38,6 +38,7 @@ setup(
         "six",
         "futures",
         "ipaddress",
+        "mock",
     ],
     license='MIT',
     zip_safe=False,

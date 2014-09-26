@@ -12,6 +12,7 @@ from .peer      import Peer
 from .shortlist import Shortlist
 from .helper    import sixunicode
 from .server    import DHTServer, DHTRequestHandler
+from .const     import Message
 
 k = 20
 alpha = 3
@@ -22,6 +23,7 @@ Shortlist.iteration_sleep = iteration_sleep
 
 # TODO: Maintainance thread / rpc_list cleanup
 
+
 class DHT(object):
 
     class NetworkError(Exception):
@@ -30,11 +32,13 @@ class DHT(object):
     def __init__(
             self,
             port,
-            hostv4=None,
-            hostv6=None,
-            id_=None,
-            boot_host=None,
-            boot_port=None
+            hostv4        = None,
+            hostv6        = None,
+            id_           = None,
+            boot_host     = None,
+            boot_port     = None,
+            listen_hostv4 = "",
+            listen_hostv6 = "",
     ):
         if not id_:
             id_ = random_id()
@@ -44,9 +48,11 @@ class DHT(object):
         self.rpc_ids = {}  # should probably have a lock for this
         self.server4 = None
         self.server6 = None
+        self.hostv4  = ipaddress.ip_address(hostv4)
+        self.hostv6  = ipaddress.ip_address(hostv6)
         if hostv4:
             self.server4 = DHTServer(
-                self.peer.addressv4(),
+                (listen_hostv4, port),
                 DHTRequestHandler,
                 is_v6=False
             )
@@ -58,7 +64,7 @@ class DHT(object):
             self.server4_thread.start()
         if hostv6:
             self.server6 = DHTServer(
-                self.peer.addressv6(),
+                (listen_hostv6, port),
                 DHTRequestHandler,
                 is_v6=True
             )
@@ -122,7 +128,12 @@ class DHT(object):
                     rpc_id = random_id()
                     self.rpc_ids[rpc_id] = shortlist
                     shortlist.updated.clear()
-                    peer.find_value(key, rpc_id, dht=self, peer_id=self.peer.id)
+                    peer.find_value(
+                        key,
+                        rpc_id,
+                        dht=self,
+                        peer_id=self.peer.id
+                    )
                     shortlist.updated.wait(iteration_sleep)
                     if shortlist.completion_value.done():
                         return shortlist.completion_result()
@@ -137,6 +148,36 @@ class DHT(object):
                 len(list(self.buckets.peers())),
             ))
 
+    def stun_warning(self, found, defined):
+        """ Log a warning about wrong public address """
+        # TODO: To logging
+        print(
+"Warning: defined public address (%s) does not match the\n"  # noqa
+"address found by the bootstap peer (%s). We will use the\n"  # noqa
+"defined address. IPv4/6 convergence will not be optimal!" % (  # noqa
+    defined, found
+)
+        )
+
+    def stun_result(self, res):
+        """ Set the stun result in the client """
+        for me_msg in res[1:]:
+            try:
+                me_tuple = me_msg[Message.STUN_ADDR]
+                me_peer = Peer(*me_tuple)
+                if me_peer.hostv4:
+                    if not self.hostv4:
+                        self.peer.hostv4 = me_peer.hostv4
+                    elif me_peer.hostv4 != self.hostv4:
+                        self.stun_warning(me_peer.hostv4, self.hostv4)
+                if me_peer.hostv6:
+                    if not self.hostv6:
+                        self.peer.hostv6 = me_peer.hostv6
+                    elif me_peer.hostv6 != self.hostv6:
+                        self.stun_warning(me_peer.hostv6, self.hostv6)
+            except TypeError:
+                pass
+
     def bootstrap(self, boot_host, boot_port):
         addr = socket.getaddrinfo(boot_host, boot_port)[0][4][0]
         ipaddr = ipaddress.ip_address(sixunicode(addr))
@@ -144,14 +185,51 @@ class DHT(object):
             boot_peer = Peer(boot_port, 0, hostv6=str(ipaddr))
         else:
             boot_peer = Peer(boot_port, 0, hostv4=str(ipaddr))
-        self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
-        tries = 0
-        while len(self.buckets.nearest_nodes(self.peer.id)) < 1:
-            tries += 1
-            if tries > 2:
+
+        rpc_id = random_id()
+        self.rpc_ids[rpc_id] = [time.time()]
+        boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
+        time.sleep(1)
+
+        peer_found = False
+        if len(self.rpc_ids[rpc_id]) > 1:
+            try:
+                message = self.rpc_ids[rpc_id][1]
+                boot_peer = Peer(*message[Message.ALL_ADDR])
+                peer_found = True
+            except KeyError:
+                self.rpc_ids[rpc_id].pop(1)
+        if not peer_found:
+            time.sleep(3)
+            boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
+            if len(self.rpc_ids[rpc_id]) > 1:
+                self.stun_result(self.rpc_ids[rpc_id])
+            else:
                 raise DHT.NetworkError("Cannot boot DHT")
+        del self.rpc_ids[rpc_id]
+
+        rpc_id = random_id()
+        self.rpc_ids[rpc_id] = [time.time()]
+        boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
+        time.sleep(1)
+
+        if len(self.rpc_ids[rpc_id]) > 2:
+            self.stun_result(self.rpc_ids[rpc_id])
+        else:
+            time.sleep(3)
+            boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
+            if len(self.rpc_ids[rpc_id]) > 1:
+                self.stun_result(self.rpc_ids[rpc_id])
+            else:
+                raise DHT.NetworkError("Cannot boot DHT")
+        del self.rpc_ids[rpc_id]
+
+        self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
+        if len(self.buckets.nearest_nodes(self.peer.id)) < 1:
             time.sleep(3)
             self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
+            if len(self.buckets.nearest_nodes(self.peer.id)) < 1:
+                raise DHT.NetworkError("Cannot boot DHT")
 
     def __getitem__(self, key):
         hashed_key = hash_function(msgpack.dumps(key))
