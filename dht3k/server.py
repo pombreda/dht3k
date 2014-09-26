@@ -17,7 +17,9 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         try:
-            message      = msgpack.loads(self.request[0].strip())
+            message      = msgpack.loads(
+                self.request[0].strip(),
+            )
             message_type = message[Message.MESSAGE_TYPE]
             is_pong      = False
             is_rpc_ping  = False

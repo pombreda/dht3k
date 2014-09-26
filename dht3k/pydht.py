@@ -32,17 +32,20 @@ class DHT(object):
 
     def __init__(
             self,
-            port,
-            hostv4        = None,
-            hostv6        = None,
-            id_           = None,
-            boot_host     = None,
-            boot_port     = None,
-            listen_hostv4 = "",
-            listen_hostv6 = "",
+            port             = 7339,
+            hostv4           = None,
+            hostv6           = None,
+            id_              = None,
+            boot_host        = None,
+            boot_port        = None,
+            listen_hostv4    = "",
+            listen_hostv6    = "",
+            zero_config      = False,
+            default_encoding = None
     ):
         if not id_:
             id_ = random_id()
+        self.encoding = default_encoding
         self.peer = Peer(port, id_, hostv4, hostv6)
         self.data = {}
         self.buckets = BucketSet(k, id_bits, self.peer.id)
@@ -50,11 +53,15 @@ class DHT(object):
         self.server4 = None
         self.server6 = None
         if not hostv4:
-            self.hostv4 = None
+            if zero_config:
+                hostv4 = ""
+            self.hostv4 = hostv4
         else:
             self.hostv4  = ipaddress.ip_address(hostv4)
         if not hostv6:
-            self.hostv6 = None
+            if zero_config:
+                hostv6 = ""
+            self.hostv6 = hostv6
         else:
             self.hostv6  = ipaddress.ip_address(hostv6)
         # Detecting dual_stack sockets seems not to work on some OSs
@@ -83,8 +90,14 @@ class DHT(object):
             )
             self.server4_thread.daemon = True
             self.server4_thread.start()
-        if boot_host:
-            self.bootstrap(boot_host, boot_port)
+        if zero_config:
+            try:
+                self.bootstrap("54.164.229.197", 7339)
+            except DHT.NetworkError:
+                self.bootstrap("2001:470:7:ab::2", 7339)
+        else:
+            if boot_host:
+                self.bootstrap(boot_host, boot_port)
 
     def close(self):
         if self.server4:
@@ -240,15 +253,31 @@ class DHT(object):
             if len(self.buckets.nearest_nodes(self.peer.id)) < 1:
                 raise DHT.NetworkError("Cannot boot DHT")
 
-    def __getitem__(self, key):
+    def get(self, key, encoding=None):
+        if not encoding:
+            encoding = self.encoding
         hashed_key = hash_function(msgpack.dumps(key))
         if hashed_key in self.data:
-            return self.data[hashed_key]
-        return self.iterative_find_value(hashed_key)
+            res = self.data[hashed_key]
+        else:
+            res = self.iterative_find_value(hashed_key)
+        if encoding:
+            res = msgpack.loads(res, encoding=encoding)
+        return res
 
-    def __setitem__(self, key, value):
+    def __getitem__(self, key):
+        return self.get(key)
+
+    def set(self, key, value, encoding=None):
+        if not encoding:
+            encoding = self.encoding
+        if encoding:
+            value = msgpack.dumps(value, encoding=encoding)
         hashed_key = hash_function(msgpack.dumps(key))
         nearest_nodes = self.iterative_find_nodes(hashed_key)
         self.data[hashed_key] = value
         for node in nearest_nodes:
             node.store(hashed_key, value, dht=self, peer_id=self.peer.id)
+
+    def __setitem__(self, key, value):
+        self.set(key, value)

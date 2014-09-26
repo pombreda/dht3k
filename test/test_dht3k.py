@@ -44,6 +44,14 @@ class TestPyDht(object):
         time.sleep(0.1)
         assert self.dht2[b"huhu"] == b"haha"
 
+    def test_encoding(self):
+        """ Testing init """
+        self.dht1.encoding = "UTF-8"
+        self.dht2.encoding = "UTF-8"
+        self.dht1["huhu"] = "haha"
+        time.sleep(0.1)
+        assert self.dht2["huhu"] == "haha"
+
     def test_perform(self):
         """ Testing init """
         for x in range(10):
