@@ -48,8 +48,14 @@ class DHT(object):
         self.rpc_ids = {}  # should probably have a lock for this
         self.server4 = None
         self.server6 = None
-        self.hostv4  = ipaddress.ip_address(hostv4)
-        self.hostv6  = ipaddress.ip_address(hostv6)
+        if not hostv4:
+            self.hostv4 = None
+        else:
+            self.hostv4  = ipaddress.ip_address(hostv4)
+        if not hostv6:
+            self.hostv6 = None
+        else:
+            self.hostv6  = ipaddress.ip_address(hostv6)
         if hostv4:
             self.server4 = DHTServer(
                 (listen_hostv4, port),
