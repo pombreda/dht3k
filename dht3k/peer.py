@@ -53,12 +53,12 @@ class Peer(object):
     def _sendmessage(self, message, dht, peer_id):
         message[Message.PEER_ID] = peer_id  # more like sender_id
         encoded = msgpack.dumps(message)
-        if self.hostv4:
+        if self.hostv4 and dht.server4:
             dht.server4.socket.sendto(
                 encoded,
                 (str(self.hostv4), self.port)
             )
-        if self.hostv6:
+        if self.hostv6 and dht.server6:
             dht.server6.socket.sendto(
                 encoded,
                 (str(self.hostv6), self.port)

@@ -72,6 +72,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
     def handle_ping(self, message):
         print("ping")
         id_ = message[Message.PEER_ID]
+        # TODO Only ping unique addresses
         cpeer = self.peer_from_client_address(self.client_address, id_)
         cpeer.pong(
             dht=self.server.dht,
@@ -173,6 +174,8 @@ class DHT(object):
         self.data = {}
         self.buckets = BucketSet(k, id_bits, self.peer.id)
         self.rpc_ids = {}  # should probably have a lock for this
+        self.server4 = None
+        self.server6 = None
         if hostv4:
             self.server4 = DHTServer(
                 self.peer.addressv4(),
@@ -199,6 +202,14 @@ class DHT(object):
             self.server6_thread.start()
         if boot_host:
             self.bootstrap(boot_host, boot_port)
+
+    def close(self):
+        if self.server4:
+            self.server4.shutdown()
+            self.server4.server_close()
+        if self.server6:
+            self.server6.shutdown()
+            self.server6.server_close()
 
     def iterative_find_nodes(self, key, boot_peer=None):
         shortlist = Shortlist(k, key, self.peer.id)

@@ -27,6 +27,9 @@ lint:
 	pylama -l pep8,pyflakes,pylint -i E203,E272,E221,E251,E202,E271,C0302,W0511,F0401,R0201,C0325,C0326 dht3k
 	pylama -l pep8,pyflakes,pylint -i E203,E272,E221,E251,E202,E271,C0302,W0511,F0401,R0201,C0325,C0326 test
 
+devtest:
+	py.test -s -v -m "not slowtest"
+
 test:
 	py.test --cov dht3k --cov-report=term-missing
 

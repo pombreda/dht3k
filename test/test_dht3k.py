@@ -14,6 +14,7 @@ class TestPyDht(object):
 
     def setup(self):
         """ Setup """
+        time.sleep(0.3)
         self.dht1 = DHT(4165, "127.0.0.1", "::1")
         self.dht2 = DHT(
             4166,
@@ -25,56 +26,51 @@ class TestPyDht(object):
 
     def teardown(self):
         """ Teardown """
-        self.dht1.server4.shutdown()
-        self.dht2.server4.shutdown()
-        self.dht1.server4.server_close()
-        self.dht2.server4.server_close()
-        self.dht1.server6.shutdown()
-        self.dht2.server6.shutdown()
-        self.dht1.server6.server_close()
-        self.dht2.server6.server_close()
+        self.dht1.close()
+        self.dht2.close()
 
     def test_find_set(self):
         """ Testing init """
         self.dht1[b"huhu"] = b"haha"
-        time.sleep(0.2)
+        time.sleep(0.1)
         assert self.dht2[b"huhu"] == b"haha"
 
     def test_perform(self):
         """ Testing init """
-        for x in range(30):
+        for x in range(10):
             x += 1
             self.dht1[x] = x
         time.sleep(1)
-        for x in range(30):
+        for x in range(10):
             x += 1
             assert self.dht2[x] == x
 
     def test_find_set_str(self):
         """ Testing init """
         self.dht1["huhu"] = b"haha"
-        time.sleep(0.2)
+        time.sleep(0.1)
         assert self.dht2["huhu"] == b"haha"
 
     def test_not_find(self):
         """ Testing init """
         self.dht1[b"huhu"] = b"haha"
-        time.sleep(0.2)
+        time.sleep(0.1)
         with pytest.raises(KeyError):
             assert self.dht2[b"blau"] == b"haha"
 
     def test_null_key(self):
         """ Testing init """
         self.dht1[0] = b"haha"
-        time.sleep(0.2)
+        time.sleep(0.1)
         assert self.dht2[0] == b"haha"
 
     def test_null_value(self):
         """ Testing init """
         self.dht1[b"bla"] = 0
-        time.sleep(0.2)
+        time.sleep(0.1)
         assert self.dht2["bla"] == 0
 
+    @pytest.mark.slowtest
     def test_large_network(self):
         """ Testing a larger network """
         dhts = []
@@ -107,9 +103,6 @@ class TestPyDht(object):
         finally:
             for dht in dhts:
                 print([len(a) for a in dht.buckets.buckets])
-                dht.server4.shutdown()
-                dht.server4.server_close()
-                dht.server6.shutdown()
-                dht.server6.server_close()
+                dht.close()
 
 # pylama:ignore=w0201
