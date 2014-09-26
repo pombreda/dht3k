@@ -2,6 +2,11 @@
 Credits
 =======
 
+Forked from
+-----------
+
+* Isaac Zafuta <isaac@zafuta.com>
+
 Development Lead
 ----------------
 

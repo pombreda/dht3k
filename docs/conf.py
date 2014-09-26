@@ -47,7 +47,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Python Kademlia DHT'
-copyright = u'2014, Jean-Louis Fuchs'
+copyright = u'2014, Isaac Zafuta, Jean-Louis Fuchs'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -193,7 +193,7 @@ latex_elements = {
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
   ('index', 'dht3k.tex', u'Python Kademlia DHT Documentation',
-   u'Jean-Louis Fuchs', 'manual'),
+   u'Isaac Zafuta, Jean-Louis Fuchs', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -223,7 +223,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'dht3k', u'Python Kademlia DHT Documentation',
-     [u'Jean-Louis Fuchs'], 1)
+     [u'Isaac Zafuta, Jean-Louis Fuchs'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -237,7 +237,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'dht3k', u'Python Kademlia DHT Documentation',
-   u'Jean-Louis Fuchs', 'dht3k', 'One line description of project.',
+   u'Isaac Zafuta, Jean-Louis Fuchs', 'dht3k', 'One line description of project.',
    'Miscellaneous'),
 ]
 

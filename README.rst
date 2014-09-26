@@ -13,8 +13,8 @@ Python Kademlia DHT
 
 .. image:: http://b.repl.ca/v1/coverage-100%25_required-brightgreen.png
 
-Python DHT based on Isaac Zafuta's pydht
-https://github.com/isaaczafuta/pydht
+DHT with Python 2/3 support and no heavy dependencies based on Isaac Zafuta's
+pydht: https://github.com/isaaczafuta/pydht
 
 
 Features
