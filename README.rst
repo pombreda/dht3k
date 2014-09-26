@@ -16,6 +16,14 @@ Kademlia-like DHT
 DHT with Python 2/3 support and no heavy dependencies based on Isaac Zafuta's
 pydht: https://github.com/isaaczafuta/pydht
 
+Basic Usage
+-----------
+
+To use DHT3k in a project::
+
+    import dht3k
+    dht = dht3k.DHT(zero_config=True)
+    dht["key"] = b"value"
 
 Features
 --------
