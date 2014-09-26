@@ -17,18 +17,18 @@ class TestPyDht(object):
         time.sleep(0.4)
         self.dht1 = DHT(
             4165,
-            "127.0.0.1",
-            "::1",
-            listen_hostv4="127.0.0.1",
-            listen_hostv6="::1",
+            u"127.0.0.1",
+            u"::1",
+            listen_hostv4=u"127.0.0.1",
+            listen_hostv6=u"::1",
         )
         self.dht2 = DHT(
             4166,
-            "127.0.0.1",
-            "::1",
-            listen_hostv4="127.0.0.1",
-            listen_hostv6="::1",
-            boot_host="::1",
+            u"127.0.0.1",
+            u"::1",
+            listen_hostv4=u"127.0.0.1",
+            listen_hostv6=u"::1",
+            boot_host=u"::1",
             boot_port=4165
         )
 
@@ -96,11 +96,11 @@ class TestPyDht(object):
                 try:
                     dhts.append(DHT(
                         x + 30000,
-                        "127.0.0.1",
-                        "::1",
-                        listen_hostv4="127.0.0.1",
-                        listen_hostv6="::1",
-                        boot_host="::1",
+                        u"127.0.0.1",
+                        u"::1",
+                        listen_hostv4=u"127.0.0.1",
+                        listen_hostv6=u"::1",
+                        boot_host=u"::1",
                         boot_port=4165,
                     ))
                 except DHT.NetworkError:

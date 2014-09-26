@@ -51,11 +51,11 @@ class BucketSet(object):
                     if from_pong:
                         bucket.popitem(-1)
                         items = list(bucket.items())
-                        # Putting the pinged node in the middle of the bucket
-                        # is a simple async emultion of the protocol defined
-                        # by kademlia, I hope it works ;-)
+                        # Putting the pinged node in the 3/4 (%75) of the
+                        # bucket is a simple async emultion of the protocol
+                        # defined by kademlia, I hope it works ;-)
                         items.insert(
-                            int(self.bucket_size / 2),
+                            int(self.bucket_size * 0.75),
                             (
                                 peer.id,
                                 peer_tuple

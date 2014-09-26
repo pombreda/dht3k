@@ -2,6 +2,7 @@ import hashlib
 import os
 import six
 
+# TODO move this to const
 id_bytes = 32
 
 if six.PY3:  # pragma: no cover

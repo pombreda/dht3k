@@ -77,7 +77,7 @@ class Peer(object):
         message = {
             Message.MESSAGE_TYPE: Message.PONG,
             Message.ALL_ADDR: dht.peer.astuple(),
-            Message.STUN_ADDR: cpeer.astuple(),
+            Message.CLI_ADDR: cpeer.astuple(),
         }
         if rpc_id:
             message[Message.RPC_ID] = rpc_id

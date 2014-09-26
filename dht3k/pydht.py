@@ -15,6 +15,7 @@ from .helper    import sixunicode
 from .server    import DHTServer, DHTRequestHandler
 from .const     import Message
 
+# TODO move this to const
 k = 20
 alpha = 3
 id_bits = id_bytes * 8
@@ -171,7 +172,7 @@ class DHT(object):
                 len(list(self.buckets.peers())),
             ))
 
-    def _stun_warning(self, found, defined):
+    def _discov_warning(self, found, defined):
         """ Log a warning about wrong public address """
         # TODO: To logging
         print(
@@ -182,22 +183,22 @@ class DHT(object):
 )
         )
 
-    def _stun_result(self, res):
-        """ Set the stun result in the client """
+    def _discov_result(self, res):
+        """ Set the discover result in the client """
         for me_msg in res[1:]:
             try:
-                me_tuple = me_msg[Message.STUN_ADDR]
-                me_peer = Peer(*me_tuple)
+                me_tuple = me_msg[Message.CLI_ADDR]
+                me_peer = Peer(*me_tuple, is_bytes=True)
                 if me_peer.hostv4:
                     if not self.hostv4:
                         self.peer.hostv4 = me_peer.hostv4
                     elif me_peer.hostv4 != self.hostv4:
-                        self._stun_warning(me_peer.hostv4, self.hostv4)
+                        self._discov_warning(me_peer.hostv4, self.hostv4)
                 if me_peer.hostv6:
                     if not self.hostv6:
                         self.peer.hostv6 = me_peer.hostv6
                     elif me_peer.hostv6 != self.hostv6:
-                        self._stun_warning(me_peer.hostv6, self.hostv6)
+                        self._discov_warning(me_peer.hostv6, self.hostv6)
             except TypeError:
                 pass
 
@@ -218,7 +219,7 @@ class DHT(object):
         if len(self.rpc_ids[rpc_id]) > 1:
             try:
                 message = self.rpc_ids[rpc_id][1]
-                boot_peer = Peer(*message[Message.ALL_ADDR])
+                boot_peer = Peer(*message[Message.ALL_ADDR], is_bytes=True)
                 peer_found = True
             except KeyError:
                 self.rpc_ids[rpc_id].pop(1)
@@ -226,7 +227,7 @@ class DHT(object):
             time.sleep(3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
             if len(self.rpc_ids[rpc_id]) > 1:
-                self._stun_result(self.rpc_ids[rpc_id])
+                self._discov_result(self.rpc_ids[rpc_id])
             else:
                 raise DHT.NetworkError("Cannot boot DHT")
         del self.rpc_ids[rpc_id]
@@ -237,12 +238,12 @@ class DHT(object):
         time.sleep(1)
 
         if len(self.rpc_ids[rpc_id]) > 2:
-            self._stun_result(self.rpc_ids[rpc_id])
+            self._discov_result(self.rpc_ids[rpc_id])
         else:
             time.sleep(3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
             if len(self.rpc_ids[rpc_id]) > 1:
-                self._stun_result(self.rpc_ids[rpc_id])
+                self._discov_result(self.rpc_ids[rpc_id])
             else:
                 raise DHT.NetworkError("Cannot boot DHT")
         del self.rpc_ids[rpc_id]
