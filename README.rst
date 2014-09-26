@@ -1,6 +1,6 @@
-=============================
-Python Kademlia DHT
-=============================
+=================
+Kademlia-like DHT
+=================
 
 .. image:: https://badge.fury.io/py/dht3k.png
     :target: http://badge.fury.io/py/dht3k

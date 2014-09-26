@@ -36,8 +36,8 @@ is open to whoever wants to implement it.
 Write Documentation
 ~~~~~~~~~~~~~~~~~~~
 
-Python Kademlia DHT could always use more documentation, whether as part of the 
-official Python Kademlia DHT docs, in docstrings, or even on the web in blog posts,
+DHT3k could always use more documentation, whether as part of the 
+DHT3k docs, in docstrings, or even on the web in blog posts,
 articles, and such.
 
 Submit Feedback

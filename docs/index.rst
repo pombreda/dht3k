@@ -21,8 +21,8 @@ Contents:
 Feedback
 ========
 
-If you have any suggestions or questions about **Python Kademlia DHT** feel free to email me
+If you have any suggestions or questions about **DHT3k** feel free to email me
 at ganwell@fangorn.ch.
 
-If you encounter any errors or problems with **Python Kademlia DHT**, please let me know!
+If you encounter any errors or problems with **DHT3k**, please let me know!
 Open an Issue at the GitHub http://github.com/ganwell/dht3k main repository.

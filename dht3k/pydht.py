@@ -24,6 +24,7 @@ Shortlist.iteration_sleep = iteration_sleep
 
 # TODO: Maintainance thread / rpc_list cleanup
 
+__all__ = ['DHT']
 
 class DHT(object):
 
@@ -92,12 +93,12 @@ class DHT(object):
             self.server4_thread.start()
         if zero_config:
             try:
-                self.bootstrap("54.164.229.197", 7339)
+                self._bootstrap("54.164.229.197", 7339)
             except DHT.NetworkError:
-                self.bootstrap("2001:470:7:ab::2", 7339)
+                self._bootstrap("2001:470:7:ab::2", 7339)
         else:
             if boot_host:
-                self.bootstrap(boot_host, boot_port)
+                self._bootstrap(boot_host, boot_port)
 
     def close(self):
         if self.server4:
@@ -170,7 +171,7 @@ class DHT(object):
                 len(list(self.buckets.peers())),
             ))
 
-    def stun_warning(self, found, defined):
+    def _stun_warning(self, found, defined):
         """ Log a warning about wrong public address """
         # TODO: To logging
         print(
@@ -181,7 +182,7 @@ class DHT(object):
 )
         )
 
-    def stun_result(self, res):
+    def _stun_result(self, res):
         """ Set the stun result in the client """
         for me_msg in res[1:]:
             try:
@@ -191,16 +192,16 @@ class DHT(object):
                     if not self.hostv4:
                         self.peer.hostv4 = me_peer.hostv4
                     elif me_peer.hostv4 != self.hostv4:
-                        self.stun_warning(me_peer.hostv4, self.hostv4)
+                        self._stun_warning(me_peer.hostv4, self.hostv4)
                 if me_peer.hostv6:
                     if not self.hostv6:
                         self.peer.hostv6 = me_peer.hostv6
                     elif me_peer.hostv6 != self.hostv6:
-                        self.stun_warning(me_peer.hostv6, self.hostv6)
+                        self._stun_warning(me_peer.hostv6, self.hostv6)
             except TypeError:
                 pass
 
-    def bootstrap(self, boot_host, boot_port):
+    def _bootstrap(self, boot_host, boot_port):
         addr = socket.getaddrinfo(boot_host, boot_port)[0][4][0]
         ipaddr = ipaddress.ip_address(sixunicode(addr))
         if isinstance(ipaddr, ipaddress.IPv6Address):
@@ -225,7 +226,7 @@ class DHT(object):
             time.sleep(3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
             if len(self.rpc_ids[rpc_id]) > 1:
-                self.stun_result(self.rpc_ids[rpc_id])
+                self._stun_result(self.rpc_ids[rpc_id])
             else:
                 raise DHT.NetworkError("Cannot boot DHT")
         del self.rpc_ids[rpc_id]
@@ -236,12 +237,12 @@ class DHT(object):
         time.sleep(1)
 
         if len(self.rpc_ids[rpc_id]) > 2:
-            self.stun_result(self.rpc_ids[rpc_id])
+            self._stun_result(self.rpc_ids[rpc_id])
         else:
             time.sleep(3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
             if len(self.rpc_ids[rpc_id]) > 1:
-                self.stun_result(self.rpc_ids[rpc_id])
+                self._stun_result(self.rpc_ids[rpc_id])
             else:
                 raise DHT.NetworkError("Cannot boot DHT")
         del self.rpc_ids[rpc_id]
