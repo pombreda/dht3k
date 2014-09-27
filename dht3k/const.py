@@ -18,7 +18,7 @@ class Config(object):
     ID_BITS        = ID_BYTES * 8
     FW_PENALTY     = 2 ** (ID_BITS + 1)
     SLEEP_WAIT     = 1
-    BUCKET_REFRESH = 30
+    BUCKET_REFRESH = 1200  # NATs should all be timeouted after that time!
     FIREWALL_CHECK = 3600
     PORT           = 7339
     WORKERS        = 40

@@ -72,14 +72,14 @@ def run_bucket_refresh(dht):  # noqa
                 for x in range(Config.ID_BITS):
                     refresh_bucket(x)
                     l.debug("Refreshed bucket %d", x)
-                    if dht.stop.wait(Config.SLEEP_WAIT * 10):
+                    if dht.stop.wait(Config.SLEEP_WAIT * 20):
                         return
             while True:
                 for x in range(Config.ID_BITS):
                     refresh_bucket(x)
                     l.info("Refreshed bucket %d", x)
                     if dht.firewalled:
-                        f = 100
+                        f = 20
                     else:
                         f = 1
                     if dht.stop.wait(Config.BUCKET_REFRESH * f):
