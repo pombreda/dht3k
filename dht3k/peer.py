@@ -11,7 +11,15 @@ from .log       import l
 
 class Peer(object):
     ''' DHT Peer Information'''
-    def __init__(self, port, id_, hostv4=None, hostv6=None, is_bytes=False):
+    def __init__(
+            self,
+            port,
+            id_,
+            hostv4         = None,
+            hostv6         = None,
+            well_connected = False,
+            is_bytes       = False
+    ):
         if hostv4:
             self.hostv4 = ipaddress.ip_address(
                 sixunicode(hostv4, is_bytes)
@@ -26,8 +34,9 @@ class Peer(object):
             self.hostv6 = None
         self.port = port
         self.id = id_
+        self.well_connected = well_connected
 
-    def astuple(self):
+    def astuple(self, for_export=False):
         if self.hostv4:
             hostv4 = self.hostv4.packed
         else:
@@ -36,12 +45,21 @@ class Peer(object):
             hostv6 = self.hostv6.packed
         else:
             hostv6 = None
-        return (
-            self.port,
-            self.id,
-            hostv4,
-            hostv6,
-        )
+        if for_export:
+            return (
+                self.port,
+                self.id,
+                hostv4,
+                hostv6,
+            )
+        else:
+            return (
+                self.port,
+                self.id,
+                hostv4,
+                hostv6,
+                self.well_connected,
+            )
 
     def addressv4(self):
         return (str(self.hostv4), self.port)
@@ -96,7 +114,9 @@ class Peer(object):
     def ping(self, dht, peer_id, rpc_id=None):
         message = {
             Message.MESSAGE_TYPE: Message.PING,
-            Message.ALL_ADDR: self.astuple(),
+            Message.ALL_ADDR: self.astuple(
+                for_export=True
+            ),
         }
         if rpc_id:
             message[Message.RPC_ID] = rpc_id
@@ -111,8 +131,12 @@ class Peer(object):
     def pong(self, dht, peer_id, cpeer, rpc_id=None):
         message = {
             Message.MESSAGE_TYPE: Message.PONG,
-            Message.ALL_ADDR: dht.peer.astuple(),
-            Message.CLI_ADDR: cpeer.astuple(),
+            Message.ALL_ADDR: dht.peer.astuple(
+                for_export=True
+            ),
+            Message.CLI_ADDR: cpeer.astuple(
+                for_export=True
+            ),
         }
         if rpc_id:
             message[Message.RPC_ID] = rpc_id

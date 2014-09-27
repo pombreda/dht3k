@@ -35,6 +35,8 @@ def _get_lookup():
 
     def verify_boot_peer(peer):
         """ Verify if this can be an Peer """
+        if len(peer) != MinMax.PEER_TUPLE_LEN:
+            return False
         if peer[0] > 2 ** 32:
             return False
         if peer[0] < 1024:
@@ -49,6 +51,8 @@ def _get_lookup():
 
     def verify_peer(peer):
         """ Verify if this can be an Peer """
+        if len(peer) != MinMax.PEER_TUPLE_LEN:
+            return False
         if peer[0] > 2 ** 32:
             return False
         if peer[0] < 1024:
@@ -236,7 +240,9 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
                 if not nearest_nodes:
                     nearest_nodes.append(self.server.dht.peer)
                 nearest_nodes = [
-                    nearest_peer.astuple() for nearest_peer in nearest_nodes
+                    nearest_peer.astuple(
+                        for_export=True
+                    ) for nearest_peer in nearest_nodes
                 ]
                 peer.found_nodes(
                     id_,

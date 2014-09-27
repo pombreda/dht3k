@@ -8,6 +8,7 @@ import binascii
 from .peer    import Peer
 from .hashing import bytes2int, random_id
 from .log     import l
+from .const   import Config
 
 
 def largest_differing_bit(value1, value2):
@@ -32,6 +33,10 @@ class BucketSet(object):
         assert isinstance(peer, Peer)
         if peer.id != self.id:
             bucket_number = largest_differing_bit(self.id, peer.id)
+            if from_pong:
+                # Almost certainly this peer is not firewalled
+                # we set the well connected flag
+                peer.well_connected = True
             peer_tuple = peer.astuple()
             with self.lock:
                 bucket = self.buckets[bucket_number]
@@ -101,11 +106,15 @@ class BucketSet(object):
             def keyfunction(peer):
                 ikey  = bytes2int(key)
                 ipeer = bytes2int(peer[1])
-                return ikey ^ ipeer
+                if peer[4]:
+                    penalty = 0
+                else:
+                    # This peer is probably firewalled, return it after
+                    # well connected peers
+                    penalty = Config.FW_PENALTY
+                return (ikey ^ ipeer) + penalty
             peers = self.peers()
-            # TODO: We can define nodes that returned a ping as nearer
-            # so it will first return truly live nodes and then possibly
-            # live nodes
+            # When sorting well connected nodes are returned first
             best_peers = heapq.nsmallest(num_results, peers, keyfunction)
             return [Peer(
                 *peer,

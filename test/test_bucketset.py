@@ -63,20 +63,25 @@ class TestBucketset(object):
             {b'caab': (2,
                        b'caab',
                        None,
-                       None),
-             b'caac': (2,
-                       b'caac',
                        None,
-                       None),
+                       False),
              b'caaa': (2,
                        b'caaa',
                        None,
-                       None),
+                       None,
+                       True),
+             b'caac': (2,
+                       b'caac',
+                       None,
+                       None,
+                       False),
              b'caad': (2,
                        b'caad',
                        None,
-                       None)}
+                       None,
+                       False)}
         )
+        print(bs.buckets[25])
         assert bs.buckets[25] == res
         assert mock_ping.called
         assert mock_ping.call_args[0][1] == b"aaaa"

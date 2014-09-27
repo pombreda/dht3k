@@ -16,6 +16,7 @@ class Config(object):
     ALPHA          = 3
     ID_BYTES       = 32
     ID_BITS        = ID_BYTES * 8
+    FW_PENALTY     = 2 ** (ID_BITS + 1)
     SLEEP_WAIT     = 1
     BUCKET_REFRESH = 30
     FIREWALL_CHECK = 3600
@@ -28,9 +29,10 @@ config_dict = _consts_to_dict(Config)
 
 class MinMax(object):
     """ Maximima and minima """
-    MAX_MSG_SIZE = 3 * 1024
-    MAX_IP_LEN   = 128
-    MIN_IP_LEN   = 4
+    MAX_MSG_SIZE   = 3 * 1024
+    MAX_IP_LEN     = 128
+    MIN_IP_LEN     = 4
+    PEER_TUPLE_LEN = 4
 
 min_max_dict = _consts_to_dict(MinMax)
 

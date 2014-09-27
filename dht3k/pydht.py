@@ -20,13 +20,10 @@ from .log       import log_to_stderr, l
 
 
 # TODO: Maintainance thread / rpc_list cleanup
-# TODO: firewall check (thread)
 # TODO: change maintainance to make non firewalled nodes more public
 #       a factor in the sleep statement for bucket refresh
 # TODO: data to disk (optional)
 # TODO: async interface (futures)
-# TODO: prevent peer_id flooding
-# TODO: move nodes that are definitly online in front
 # TODO: more/better unittest + 100% coverage
 # TODO: no duplicated nodes into shortlist!
 # TODO: what about IP changes?

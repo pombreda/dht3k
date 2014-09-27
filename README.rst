@@ -37,4 +37,18 @@ To improve performance and quality of the service install these modules:
 Features
 --------
 
-* TODO
+* Python 2/3/pypy support
+* Zero config mode
+* Address discovery
+* NAT/Firewall detection
+* Well known bootstrap node
+* Optional async interface
+* Disk storage (memory storage optional)
+* IPv6 and IPv6/4 convergence
+* UPnP support
+* NAT Optimization: NATed/firewalled peers are moved to the end of the routing
+  table faster this should improve performance for both firewalled and 
+  well connected peers. Also well connected nodes are returned first
+* Less latency and waiting than standard Kademlia
+* msgpack for wire protocol
+* ThreadPool based
