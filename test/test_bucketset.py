@@ -81,7 +81,6 @@ class TestBucketset(object):
                        None,
                        False)}
         )
-        print(bs.buckets[25])
         assert bs.buckets[25] == res
         assert mock_ping.called
         assert mock_ping.call_args[0][1] == b"aaaa"

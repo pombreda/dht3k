@@ -1,5 +1,6 @@
 import threading
 import concurrent.futures as futures
+import collections
 
 from .peer    import Peer
 from .hashing import bytes2int

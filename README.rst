@@ -47,7 +47,7 @@ Features
 * IPv6 and IPv6/4 convergence
 * UPnP support
 * NAT Optimization: NATed/firewalled peers are moved to the end of the routing
-  table faster this should improve performance for both firewalled and 
+  table faster. This should improve performance for both firewalled and 
   well connected peers. Also well connected nodes are returned first
 * Less latency and waiting than standard Kademlia
 * msgpack for wire protocol
