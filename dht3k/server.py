@@ -123,6 +123,8 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             elif message_type == Message.PONG:
                 is_pong = True
                 is_rpc_ping = self.handle_pong(message)
+            elif message_type == Message.FW_PING:
+                self.handle_fw_ping(message)
             elif message_type == Message.FIND_NODE:
                 self.handle_find(message)
             elif message_type == Message.FIND_VALUE:
@@ -133,6 +135,8 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
                 self.handle_found_value(message)
             elif message_type == Message.STORE:
                 self.handle_store(message)
+            elif message_type == Message.FW_PONG:
+                self.handle_fw_pong(message)
             peer_id = message[Message.PEER_ID]
             # Prevent DoS attack: flushing of bucket
             if is_pong and not is_rpc_ping:
@@ -188,6 +192,17 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             cpeer   = cpeer,
             rpc_id  = rpc_id,
         )
+
+    def handle_fw_ping(self, message):
+        id_ = message[Message.PEER_ID]
+        peer = self.peer_from_client_address(self.client_address, id_)
+        peer.fw_pong(self.server.dht)
+
+    def handle_fw_pong(self, message):
+        id_ = message[Message.ID]
+        if id_ == self.server.dht.peer.id:
+            self.server.dht.firewalled = False
+            l.info("Nolonger marked as firewalled")
 
     def handle_pong(self, message):
         try:

@@ -12,13 +12,15 @@ def _consts_to_dict(object_):
 
 class Config(object):
     """ Config constants """
-    K          = 20
-    ALPHA      = 3
-    ID_BYTES   = 32
-    ID_BITS    = ID_BYTES * 8
-    SLEEP_WAIT = 1
-    PORT       = 7339
-    WORKERS    = 40
+    K              = 20
+    ALPHA          = 3
+    ID_BYTES       = 32
+    ID_BITS        = ID_BYTES * 8
+    SLEEP_WAIT     = 1
+    BUCKET_REFRESH = 30
+    FIREWALL_CHECK = 3600
+    PORT           = 7339
+    WORKERS        = 40
 
 
 config_dict = _consts_to_dict(Config)

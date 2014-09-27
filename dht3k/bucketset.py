@@ -90,6 +90,11 @@ class BucketSet(object):
     def peers(self):
         return (peer for bucket in self.buckets for peer in bucket.values())
 
+    def peerslist(self):
+        """ Returns a complete list of peers """
+        with self.lock:
+            return list(self.peers())
+
     def nearest_nodes(self, key, limit=None):
         num_results = limit if limit else self.bucket_size
         with self.lock:

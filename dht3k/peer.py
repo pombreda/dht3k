@@ -76,12 +76,12 @@ class Peer(object):
                 "Message size max not exceed %d bytes" % MinMax.MAX_MSG_SIZE
             )
         if self.hostv4 and dht.server4:
-            dht.fw_sock4.socket.sendto(
+            dht.fw_sock4.sendto(
                 encoded,
                 (str(self.hostv4), self.port)
             )
         if self.hostv6 and dht.server6:
-            dht.fw_sock6.socket.sendto(
+            dht.fw_sock6.sendto(
                 encoded,
                 (str(self.hostv6), self.port)
             )
@@ -95,11 +95,11 @@ class Peer(object):
             message[Message.RPC_ID] = rpc_id
         self._sendmessage(message, dht, peer_id=peer_id)
 
-    def fw_ping(self, dht):
+    def fw_ping(self, dht, peer_id):
         message = {
             Message.MESSAGE_TYPE: Message.FW_PING,
         }
-        self._sendmessage(message, dht, peer_id=None)
+        self._sendmessage(message, dht, peer_id=peer_id)
 
     def pong(self, dht, peer_id, cpeer, rpc_id=None):
         message = {

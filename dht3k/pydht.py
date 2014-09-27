@@ -15,6 +15,7 @@ from .server    import DHTServer, DHTRequestHandler
 from .const     import Message, Config
 from .          import upnp
 from .          import excepions
+from .          import threads
 from .log       import log_to_stderr, l
 
 
@@ -61,6 +62,11 @@ class DHT(object):
             id_ = random_id()
         if port < 1024:
             raise DHT.NetworkError("Ports below 1024 are not allowed")
+        if boot_host or zero_config:
+            self.firewalled = True
+        else:
+            self.firewalled = False
+        self.stop = threading.Event()
         self.encoding = default_encoding
         self.peer = Peer(port, id_, hostv4, hostv6)
         self.data = LockedDict()
@@ -68,6 +74,7 @@ class DHT(object):
         self.rpc_states = LockedDict()
         self.server4 = None
         self.server6 = None
+        self.boot_peer = None
         if not hostv4:
             if zero_config:
                 hostv4 = ""
@@ -132,9 +139,11 @@ class DHT(object):
         else:
             if boot_host:
                 self._bootstrap(boot_host, boot_port)
-        l.info("DHT is bootstrapped")
+        threads.run_bucket_refresh(self)
+        threads.run_check_firewalled(self)
 
     def close(self):
+        self.stop.set()
         if self.server4:
             self.server4.shutdown()
             self.server4.server_close()
@@ -175,7 +184,7 @@ class DHT(object):
                 (end - start),
                 len(shortlist.list),
                 len([it for it in shortlist.list if it[1]]),
-                len(list(self.buckets.peers())),
+                len(self.buckets.peerslist()),
             )
 
     def iterative_find_value(self, key):
@@ -209,7 +218,7 @@ class DHT(object):
                 (end - start),
                 len(shortlist.list),
                 len([it for it in shortlist.list if it[1]]),
-                len(list(self.buckets.peers())),
+                len(self.buckets.peerslist()),
             )
 
     def _discov_warning(self, found, defined):
@@ -310,6 +319,8 @@ found     # noqa
             self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
             if len(self.buckets.nearest_nodes(self.peer.id)) < 1:
                 raise DHT.NetworkError("Cannot boot DHT")
+        self.boot_peer = boot_peer
+        l.info("DHT is bootstrapped")
 
     def get(self, key, encoding=None):
         if not encoding:
