@@ -64,7 +64,6 @@ def run_bucket_refresh(dht):  # noqa
         """ Refresh a single bucket """
         id_ = int2bytes(2 ** x)
         dht.iterative_find_nodes(id_)
-        l.info("Refreshed bucket %d", x)
 
     def task():
         """ Run the task """
@@ -72,11 +71,13 @@ def run_bucket_refresh(dht):  # noqa
             if dht.boot_peer:
                 for x in range(Config.ID_BITS):
                     refresh_bucket(x)
+                    l.debug("Refreshed bucket %d", x)
                     if dht.stop.wait(Config.SLEEP_WAIT * 10):
                         return
             while True:
                 for x in range(Config.ID_BITS):
                     refresh_bucket(x)
+                    l.info("Refreshed bucket %d", x)
                     if dht.firewalled:
                         f = 10
                     else:

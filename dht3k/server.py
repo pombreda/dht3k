@@ -196,6 +196,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
     def handle_fw_ping(self, message):
         id_ = message[Message.PEER_ID]
         peer = self.peer_from_client_address(self.client_address, id_)
+        l.info("Fw ping from %s", self.client_address)
         peer.fw_pong(self.server.dht)
 
     def handle_fw_pong(self, message):

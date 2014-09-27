@@ -6,6 +6,7 @@ from .hashing   import hash_function
 from .const     import Message, MinMax
 from .helper    import sixunicode
 from .excepions import MaxSizeException
+from .log       import l
 
 
 class Peer(object):
@@ -59,15 +60,21 @@ class Peer(object):
                 "Message size max not exceed %d bytes" % MinMax.MAX_MSG_SIZE
             )
         if self.hostv4 and dht.server4:
-            dht.server4.socket.sendto(
-                encoded,
-                (str(self.hostv4), self.port)
-            )
+            try:
+                dht.server4.socket.sendto(
+                    encoded,
+                    (str(self.hostv4), self.port)
+                )
+            except OSError:
+                l.info("Could not send to %s", self.hostv4)
         if self.hostv6 and dht.server6:
-            dht.server6.socket.sendto(
-                encoded,
-                (str(self.hostv6), self.port)
-            )
+            try:
+                dht.server6.socket.sendto(
+                    encoded,
+                    (str(self.hostv6), self.port)
+                )
+            except OSError:
+                l.info("Could not send to %s", self.hostv6)
 
     def _fw_sendmessage(self, message, dht):
         encoded = msgpack.dumps(message)
