@@ -13,6 +13,7 @@ from .shortlist import Shortlist
 from .helper    import sixunicode
 from .server    import DHTServer, DHTRequestHandler
 from .const     import Message, Config
+from .          import upnp
 
 
 # TODO: Maintainance thread / rpc_list cleanup
@@ -27,7 +28,7 @@ class DHT(object):
 
     def __init__(
             self,
-            port             = 7339,
+            port             = Config.PORT,
             hostv4           = None,
             hostv6           = None,
             id_              = None,
@@ -36,7 +37,8 @@ class DHT(object):
             listen_hostv4    = "",
             listen_hostv6    = "",
             zero_config      = False,
-            default_encoding = None
+            default_encoding = None,
+            port_map         = True,
     ):
         if not id_:
             id_ = random_id()
@@ -85,11 +87,14 @@ class DHT(object):
             )
             self.server4_thread.daemon = True
             self.server4_thread.start()
+        if port_map:
+            if not upnp.try_map_port(port):
+                print("UPnP could not map port")
         if zero_config:
             try:
-                self._bootstrap("54.164.229.197", 7339)
+                self._bootstrap("54.164.229.197", Config.PORT)
             except DHT.NetworkError:
-                self._bootstrap("2001:470:7:ab::2", 7339)
+                self._bootstrap("2001:470:7:ab::2", Config.PORT)
         else:
             if boot_host:
                 self._bootstrap(boot_host, boot_port)

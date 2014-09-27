@@ -39,6 +39,7 @@ setup(
         "futures",
         "ipaddress",
         "mock",
+        "py.test",
     ],
     license='MIT',
     zip_safe=False,

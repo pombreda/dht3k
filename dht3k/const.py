@@ -8,6 +8,7 @@ class Config(object):
     ID_BYTES   = 32
     ID_BITS    = ID_BYTES * 8
     SLEEP_WAIT = 1
+    PORT       = 7339
 
 
 class Message(object):

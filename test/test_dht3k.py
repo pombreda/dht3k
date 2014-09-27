@@ -19,17 +19,19 @@ class TestPyDht(object):
             4165,
             u"127.0.0.1",
             u"::1",
-            listen_hostv4=u"127.0.0.1",
-            listen_hostv6=u"::1",
+            listen_hostv4 = u"127.0.0.1",
+            listen_hostv6 = u"::1",
+            port_map      = False,
         )
         self.dht2 = DHT(
             4166,
             u"127.0.0.1",
             u"::1",
-            listen_hostv4=u"127.0.0.1",
-            listen_hostv6=u"::1",
-            boot_host=u"::1",
-            boot_port=4165
+            listen_hostv4 = u"127.0.0.1",
+            listen_hostv6 = u"::1",
+            boot_host     = u"::1",
+            boot_port     = 4165,
+            port_map      = False,
         )
 
     def teardown(self):
@@ -98,10 +100,11 @@ class TestPyDht(object):
                         x + 30000,
                         u"127.0.0.1",
                         u"::1",
-                        listen_hostv4=u"127.0.0.1",
-                        listen_hostv6=u"::1",
-                        boot_host=u"::1",
-                        boot_port=4165,
+                        listen_hostv4 = u"127.0.0.1",
+                        listen_hostv6 = u"::1",
+                        boot_host     = u"::1",
+                        boot_port     = 4165,
+                        port_map      = False,
                     ))
                 except DHT.NetworkError:
                     pass

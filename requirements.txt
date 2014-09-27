@@ -4,3 +4,4 @@ six
 futures
 ipaddress
 mock
+py.test
