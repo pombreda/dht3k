@@ -15,10 +15,21 @@ from .server    import DHTServer, DHTRequestHandler
 from .const     import Message, Config
 from .          import upnp
 from .          import excepions
+from .log       import log_to_stderr, l
 
 
 # TODO: Maintainance thread / rpc_list cleanup
-# TODO: Define a max length for everything and drop messages not conforming
+# TODO: firewall check (thread)
+# TODO: change maintainance to make non firewalled nodes more public
+#       a factor in the sleep statement for bucket refresh
+# TODO: data to disk (optional)
+# TODO: async interface (futures)
+# TODO: more/better unittest + 100% coverage
+# TODO: pep8
+# TODO: lint
+# TODO: documentaion
+# TODO: review
+# TODO: think a bit more about security
 
 __all__ = ['DHT']
 
@@ -41,7 +52,11 @@ class DHT(object):
             zero_config      = False,
             default_encoding = None,
             port_map         = True,
+            log              = True,
+            debug            = True,
     ):
+        if log:
+            log_to_stderr(debug)
         if not id_:
             id_ = random_id()
         if port < 1024:
@@ -108,7 +123,7 @@ class DHT(object):
             self.fw_sock4.bind((listen_hostv4, port + 1))
         if port_map:
             if not upnp.try_map_port(port):
-                print("UPnP could not map port")
+                l.warning("UPnP could not map port")
         if zero_config:
             try:
                 self._bootstrap("54.164.229.197", Config.PORT)
@@ -117,6 +132,7 @@ class DHT(object):
         else:
             if boot_host:
                 self._bootstrap(boot_host, boot_port)
+        l.info("DHT is bootstrapped")
 
     def close(self):
         if self.server4:
@@ -154,12 +170,13 @@ class DHT(object):
         finally:
             end = time.time()
             # Convert to logging
-            print("find_nodes: %.5fs (%d, %d, %d)" % (
+            l.info(
+                "find_nodes: %.5fs (%d, %d, %d)",
                 (end - start),
                 len(shortlist.list),
                 len([it for it in shortlist.list if it[1]]),
                 len(list(self.buckets.peers())),
-            ))
+            )
 
     def iterative_find_value(self, key):
         shortlist = Shortlist(Config.K, key, self.peer.id)
@@ -187,22 +204,23 @@ class DHT(object):
         finally:
             end = time.time()
             # Convert to logging
-            print("find_value: %.5fs (%d, %d, %d)" % (
+            l.info(
+                "find_value: %.5fs (%d, %d, %d)",
                 (end - start),
                 len(shortlist.list),
                 len([it for it in shortlist.list if it[1]]),
                 len(list(self.buckets.peers())),
-            ))
+            )
 
     def _discov_warning(self, found, defined):
         """ Log a warning about wrong public address """
         # TODO: To logging
-        print(
+        l.warn(  # noqa
 "Warning: defined public address (%s) does not match the\n"  # noqa
 "address found by the bootstap peer (%s). We will use the\n"  # noqa
-"defined address. IPv4/6 convergence will not be optimal!" % (  # noqa
-    defined, found
-)
+"defined address. IPv4/6 convergence will not be optimal!",  # noqa
+defined,  # noqa
+found     # noqa
         )
 
     def _discov_result(self, res):

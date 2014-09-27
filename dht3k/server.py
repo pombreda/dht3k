@@ -12,9 +12,10 @@ from .const     import Message, MinMax, Config, message_dict
 from .helper    import sixunicode
 from .peer      import Peer
 from .threads   import ThreadPoolMixIn
+from .log       import l
 
 
-def _get_lockup():
+def _get_lookup():
     """ Create lookup """
 
     def print_len(obj):  # noqa
@@ -54,9 +55,9 @@ def _get_lockup():
             return False
         if len(peer[1]) != Config.ID_BYTES:
             return False
-        if not verify_ip(peer[2]):
+        if peer[2] and not verify_ip(peer[2]):
             return False
-        if not verify_ip(peer[3]):
+        if peer[3] and not verify_ip(peer[3]):
             return False
         return True
 
@@ -76,26 +77,26 @@ def _get_lockup():
         Message.NEAREST_NODES: verify_nodes,
     }
 
-_verifier_lookup = _get_lockup()
+_verifier_lookup = _get_lookup()
 
 
 class DHTRequestHandler(socketserver.BaseRequestHandler):
 
     def verify_message(self, message):
         if message[Message.MESSAGE_TYPE] not in message_dict:
-            print("Uknown message type, ignoring message")
+            l.warn("Unknown message type, ignoring message")
             return False
         for key in message.keys():
             if key not in message_dict:
-                print("Unknown message part, ignoring message")
+                l.warn("Unknown message part, ignoring message")
                 return False
             try:
                 verfier = _verifier_lookup[key]
             except KeyError:
                 continue
             if not verfier(message[key]):
-                print(
-                    "Unable to verify: %s, ignoring message" % (
+                l.warn(
+                    "Unable to verify: %s, ignoring message", (
                         message_dict[key]
                     )
                 )
@@ -106,7 +107,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
         try:
             data         = self.request[0].strip()
             if len(data) > MinMax.MAX_MSG_SIZE:
-                print("Message size too large")
+                l.warn("Message size too large, ignoring message")
                 return
             message      = msgpack.loads(
                 data,
@@ -160,13 +161,13 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             return Peer(client_address[1], id_, hostv4=ipaddr)
 
     def handle_ping(self, message):
-        print("ping")
         id_ = message[Message.PEER_ID]
         try:
             rpc_id = message[Message.RPC_ID]
         except KeyError:
             rpc_id = None
 
+        l.info("Ping from %s", self.client_address)
         cpeer = self.peer_from_client_address(self.client_address, id_)
         apeer = Peer(
             *message[Message.ALL_ADDR],

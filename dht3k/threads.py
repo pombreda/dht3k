@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
 from .const import Config
+from .log   import l
 
 pool = ThreadPoolExecutor(max_workers=Config.WORKERS)
 
@@ -22,7 +23,8 @@ class ThreadPoolMixIn:
         try:
             self.finish_request(request, client_address)
             self.shutdown_request(request)
-        except:
+        except:  # noqa
+            l.exception("Exception in request handler")
             self.handle_error(request, client_address)
             self.shutdown_request(request)
 

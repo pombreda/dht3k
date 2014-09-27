@@ -1,10 +1,13 @@
+""" Handling the bucketset """
 import heapq
 import threading
 import collections
 import time
+import binascii
 
 from .peer    import Peer
 from .hashing import bytes2int, random_id
+from .log     import l
 
 
 def largest_differing_bit(value1, value2):
@@ -63,7 +66,10 @@ class BucketSet(object):
                         )
                         bucket = collections.OrderedDict(items)
                         self.buckets[bucket_number] = bucket
-                        print("from pong")
+                        l.debug(
+                            "Live peer reinserted: %s",
+                            binascii.hexlify(peer.id)
+                        )
                     else:
                         pop_peer = Peer(
                             *bucket.popitem(0)[1],

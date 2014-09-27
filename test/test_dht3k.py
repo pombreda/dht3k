@@ -2,11 +2,13 @@
 Integration tests for pydht
 """
 
-from dht3k import DHT
-from dht3k import hashing
 import pytest
 import time
 import random
+
+from dht3k     import DHT
+from dht3k     import hashing
+from dht3k.log import l
 
 
 class TestPyDht(object):
@@ -124,7 +126,7 @@ class TestPyDht(object):
 
         finally:
             for dht in dhts:
-                print([len(a) for a in dht.buckets.buckets])
+                l.debug([len(a) for a in dht.buckets.buckets])
                 dht.close()
 
 # pylama:ignore=w0201
