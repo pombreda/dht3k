@@ -24,7 +24,7 @@ class TestPyDht(object):
             port_map      = False,
         )
         self.dht2 = DHT(
-            4166,
+            4167,
             u"127.0.0.1",
             u"::1",
             listen_hostv4 = u"127.0.0.1",
@@ -94,10 +94,10 @@ class TestPyDht(object):
         """ Testing a larger network """
         dhts = []
         try:
-            for x in range(100):
+            for x in range(50):
                 try:
                     dhts.append(DHT(
-                        x + 30000,
+                        (x * 2) + 30000,
                         u"127.0.0.1",
                         u"::1",
                         listen_hostv4 = u"127.0.0.1",

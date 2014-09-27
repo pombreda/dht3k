@@ -2,9 +2,10 @@ import msgpack
 import ipaddress
 import six
 
-from .hashing import hash_function
-from .const   import Message
-from .helper  import sixunicode
+from .hashing   import hash_function
+from .const     import Message, MinMax
+from .helper    import sixunicode
+from .excepions import MaxSizeException
 
 
 class Peer(object):
@@ -53,6 +54,10 @@ class Peer(object):
     def _sendmessage(self, message, dht, peer_id):
         message[Message.PEER_ID] = peer_id  # more like sender_id
         encoded = msgpack.dumps(message)
+        if len(encoded) > MinMax.MAX_MSG_SIZE:
+            raise MaxSizeException(
+                "Message size max not exceed %d bytes" % MinMax.MAX_MSG_SIZE
+            )
         if self.hostv4 and dht.server4:
             dht.server4.socket.sendto(
                 encoded,
@@ -60,6 +65,23 @@ class Peer(object):
             )
         if self.hostv6 and dht.server6:
             dht.server6.socket.sendto(
+                encoded,
+                (str(self.hostv6), self.port)
+            )
+
+    def _fw_sendmessage(self, message, dht):
+        encoded = msgpack.dumps(message)
+        if len(encoded) > MinMax.MAX_MSG_SIZE:
+            raise MaxSizeException(
+                "Message size max not exceed %d bytes" % MinMax.MAX_MSG_SIZE
+            )
+        if self.hostv4 and dht.server4:
+            dht.fw_sock4.socket.sendto(
+                encoded,
+                (str(self.hostv4), self.port)
+            )
+        if self.hostv6 and dht.server6:
+            dht.fw_sock6.socket.sendto(
                 encoded,
                 (str(self.hostv6), self.port)
             )
@@ -73,6 +95,12 @@ class Peer(object):
             message[Message.RPC_ID] = rpc_id
         self._sendmessage(message, dht, peer_id=peer_id)
 
+    def fw_ping(self, dht):
+        message = {
+            Message.MESSAGE_TYPE: Message.FW_PING,
+        }
+        self._sendmessage(message, dht, peer_id=None)
+
     def pong(self, dht, peer_id, cpeer, rpc_id=None):
         message = {
             Message.MESSAGE_TYPE: Message.PONG,
@@ -82,6 +110,13 @@ class Peer(object):
         if rpc_id:
             message[Message.RPC_ID] = rpc_id
         self._sendmessage(message, dht, peer_id=peer_id)
+
+    def fw_pong(self, dht):
+        message = {
+            Message.MESSAGE_TYPE: Message.FW_PONG,
+            Message.ID: self.id,
+        }
+        self._fw_sendmessage(message, dht)
 
     def store(self, key, value, dht, peer_id):
         message = {

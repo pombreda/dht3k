@@ -3,12 +3,14 @@
 Testing the bucketset
 """
 
-import dht3k.bucketset     as bucketset
-import dht3k.peer          as peer
 try:
     import unittest.mock   as mock
 except ImportError:
     import mock
+
+import dht3k.bucketset     as bucketset
+import dht3k.peer          as peer
+import dht3k.helper        as helper
 
 
 class TestBucketset(object):
@@ -25,7 +27,7 @@ class TestBucketset(object):
         bs = bucketset.BucketSet(4, 32, b"aaaa")
         server = mock.Mock()
         server.dht = mock.Mock()
-        server.dht.rpc_ids = {}
+        server.dht.rpc_states = helper.LockedDict()
         server.dht.peer = mock.Mock()
         server.dht.peer.id = b"aaaa"
         with mock.patch.object(

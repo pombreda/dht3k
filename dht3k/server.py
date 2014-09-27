@@ -8,18 +8,111 @@ import threading
 import msgpack
 import ipaddress
 
-from .const     import Message
+from .const     import Message, MinMax, Config, message_dict
 from .helper    import sixunicode
 from .peer      import Peer
+from .threads   import ThreadPoolMixIn
+
+
+def _get_lockup():
+    """ Create lookup """
+
+    def print_len(obj):  # noqa
+        """ Helper for creating verifiers """
+        print("Len: %d" % len(obj))
+        return True
+
+    def print_obj(obj):  # noqa
+        """ Helper for creating verifiers """
+        print("Obj: %s" % obj)
+        return True
+
+    def verify_ip(ip):
+        """ Check this can be an IP """
+        ip_len = len(ip)
+        return ip_len <= MinMax.MAX_IP_LEN and ip_len >= MinMax.MIN_IP_LEN
+
+    def verify_boot_peer(peer):
+        """ Verify if this can be an Peer """
+        if peer[0] > 2 ** 32:
+            return False
+        if peer[0] < 1024:
+            return False
+        if peer[1] and len(peer[1]) != Config.ID_BYTES:
+            return False
+        if peer[2] and not verify_ip(peer[2]):
+            return False
+        if peer[3] and not verify_ip(peer[3]):
+            return False
+        return True
+
+    def verify_peer(peer):
+        """ Verify if this can be an Peer """
+        if peer[0] > 2 ** 32:
+            return False
+        if peer[0] < 1024:
+            return False
+        if len(peer[1]) != Config.ID_BYTES:
+            return False
+        if not verify_ip(peer[2]):
+            return False
+        if not verify_ip(peer[3]):
+            return False
+        return True
+
+    def verify_nodes(nodes):
+        """ Check if all nodes kann be peers """
+        for node in nodes:
+            if not verify_peer(node):
+                return False
+        return True
+
+    return {
+        Message.PEER_ID: lambda x: len(x) == Config.ID_BYTES,
+        Message.RPC_ID:  lambda x: len(x) == Config.ID_BYTES,
+        Message.ID:  lambda x: len(x) == Config.ID_BYTES,
+        Message.CLI_ADDR: verify_ip,
+        Message.ALL_ADDR: verify_boot_peer,
+        Message.NEAREST_NODES: verify_nodes,
+    }
+
+_verifier_lookup = _get_lockup()
 
 
 class DHTRequestHandler(socketserver.BaseRequestHandler):
 
+    def verify_message(self, message):
+        if message[Message.MESSAGE_TYPE] not in message_dict:
+            print("Uknown message type, ignoring message")
+            return False
+        for key in message.keys():
+            if key not in message_dict:
+                print("Unknown message part, ignoring message")
+                return False
+            try:
+                verfier = _verifier_lookup[key]
+            except KeyError:
+                continue
+            if not verfier(message[key]):
+                print(
+                    "Unable to verify: %s, ignoring message" % (
+                        message_dict[key]
+                    )
+                )
+                return False
+        return True
+
     def handle(self):
         try:
+            data         = self.request[0].strip()
+            if len(data) > MinMax.MAX_MSG_SIZE:
+                print("Message size too large")
+                return
             message      = msgpack.loads(
-                self.request[0].strip(),
+                data,
             )
+            if not self.verify_message(message):
+                return
             message_type = message[Message.MESSAGE_TYPE]
             is_pong      = False
             is_rpc_ping  = False
@@ -98,9 +191,10 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
     def handle_pong(self, message):
         try:
             rpc_id = message[Message.RPC_ID]
-            self.server.dht.rpc_ids[rpc_id].append(
-                message
-            )
+            with self.server.dht.rpc_states as states:
+                states[rpc_id].append(
+                    message
+                )
             return True
         except KeyError:
             return False
@@ -110,52 +204,56 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
         id_ = message[Message.PEER_ID]
         peer = self.peer_from_client_address(self.client_address, id_)
         response_socket = self.request[1]
-        if find_value and (key in self.server.dht.data):
-            value = self.server.dht.data[key]
-            peer.found_value(
-                id_,
-                value,
-                message[Message.RPC_ID],
-                dht=self.server.dht,
-                peer_id=self.server.dht.peer.id,
-            )
-        else:
-            nearest_nodes = self.server.dht.buckets.nearest_nodes(id_)
-            if not nearest_nodes:
-                nearest_nodes.append(self.server.dht.peer)
-            nearest_nodes = [
-                nearest_peer.astuple() for nearest_peer in nearest_nodes
-            ]
-            peer.found_nodes(
-                id_,
-                nearest_nodes,
-                message[Message.RPC_ID],
-                dht=self.server.dht,
-                peer_id=self.server.dht.peer.id,
-            )
+        with self.server.dht.data as data:
+            if find_value and (key in data):
+                value = data[key]
+                peer.found_value(
+                    id_,
+                    value,
+                    message[Message.RPC_ID],
+                    dht=self.server.dht,
+                    peer_id=self.server.dht.peer.id,
+                )
+            else:
+                nearest_nodes = self.server.dht.buckets.nearest_nodes(id_)
+                if not nearest_nodes:
+                    nearest_nodes.append(self.server.dht.peer)
+                nearest_nodes = [
+                    nearest_peer.astuple() for nearest_peer in nearest_nodes
+                ]
+                peer.found_nodes(
+                    id_,
+                    nearest_nodes,
+                    message[Message.RPC_ID],
+                    dht=self.server.dht,
+                    peer_id=self.server.dht.peer.id,
+                )
 
     def handle_found_nodes(self, message):
         rpc_id = message[Message.RPC_ID]
-        shortlist = self.server.dht.rpc_ids[rpc_id]
-        del self.server.dht.rpc_ids[rpc_id]
-        nearest_nodes = [Peer(
-            *peer,
-            is_bytes=True
-        ) for peer in message[Message.NEAREST_NODES]]
-        shortlist.update(nearest_nodes)
+        with self.server.dht.rpc_states as states:
+            shortlist = states[rpc_id]
+            del states[rpc_id]
+            nearest_nodes = [Peer(
+                *peer,
+                is_bytes=True
+            ) for peer in message[Message.NEAREST_NODES]]
+            shortlist.update(nearest_nodes)
 
     def handle_found_value(self, message):
         rpc_id = message[Message.RPC_ID]
-        shortlist = self.server.dht.rpc_ids[rpc_id]
-        del self.server.dht.rpc_ids[rpc_id]
-        shortlist.set_complete(message[Message.VALUE])
+        with self.server.dht.rpc_states as states:
+            shortlist = states[rpc_id]
+            del states[rpc_id]
+            shortlist.set_complete(message[Message.VALUE])
 
     def handle_store(self, message):
         key = message[Message.ID]
-        self.server.dht.data[key] = message[Message.VALUE]
+        with self.server.dht.data as data:
+            data[key] = message[Message.VALUE]
 
 
-class DHTServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
+class DHTServer(ThreadPoolMixIn, socketserver.UDPServer):
     def __init__(self, host_address, handler_cls, is_v6=False):
         if is_v6:
             socketserver.UDPServer.address_family = socket.AF_INET6

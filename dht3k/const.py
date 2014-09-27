@@ -1,6 +1,15 @@
 """ Constants for pydht """
 
 
+def _consts_to_dict(object_):
+    """Converts a constants object to a dictionary"""
+    new = {}
+    for const in dir(object_):
+        if not const.startswith("_"):
+            new[getattr(object_, const)] = const
+    return new
+
+
 class Config(object):
     """ Config constants """
     K          = 20
@@ -9,6 +18,19 @@ class Config(object):
     ID_BITS    = ID_BYTES * 8
     SLEEP_WAIT = 1
     PORT       = 7339
+    WORKERS    = 40
+
+
+config_dict = _consts_to_dict(Config)
+
+
+class MinMax(object):
+    """ Maximima and minima """
+    MAX_MSG_SIZE = 3 * 1024
+    MAX_IP_LEN   = 128
+    MIN_IP_LEN   = 4
+
+min_max_dict = _consts_to_dict(MinMax)
 
 
 class Message(object):
@@ -28,3 +50,7 @@ class Message(object):
     NEAREST_NODES = 12
     ALL_ADDR      = 13
     CLI_ADDR      = 14
+    FW_PING       = 15
+    FW_PONG       = 16
+
+message_dict = _consts_to_dict(Message)

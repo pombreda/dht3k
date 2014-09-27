@@ -70,7 +70,8 @@ class BucketSet(object):
                             is_bytes=True
                         )
                         rpc_id = random_id()
-                        server.dht.rpc_ids[rpc_id] = [time.time()]
+                        with server.dht.rpc_states as states:
+                            states[rpc_id] = [time.time()]
                         pop_peer.ping(
                             server.dht,
                             server.dht.peer.id,

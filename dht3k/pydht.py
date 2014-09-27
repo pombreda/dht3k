@@ -10,21 +10,23 @@ from .bucketset import BucketSet
 from .hashing   import hash_function, random_id
 from .peer      import Peer
 from .shortlist import Shortlist
-from .helper    import sixunicode
+from .helper    import sixunicode, LockedDict
 from .server    import DHTServer, DHTRequestHandler
 from .const     import Message, Config
 from .          import upnp
+from .          import excepions
 
 
 # TODO: Maintainance thread / rpc_list cleanup
+# TODO: Define a max length for everything and drop messages not conforming
 
 __all__ = ['DHT']
 
 
 class DHT(object):
 
-    class NetworkError(Exception):
-        pass
+    MaxSizeException = excepions.MaxSizeException
+    NetworkError     = excepions.NetworkError
 
     def __init__(
             self,
@@ -42,11 +44,13 @@ class DHT(object):
     ):
         if not id_:
             id_ = random_id()
+        if port < 1024:
+            raise DHT.NetworkError("Ports below 1024 are not allowed")
         self.encoding = default_encoding
         self.peer = Peer(port, id_, hostv4, hostv6)
-        self.data = {}
+        self.data = LockedDict()
         self.buckets = BucketSet(Config.K, Config.ID_BITS, self.peer.id)
-        self.rpc_ids = {}  # should probably have a lock for this
+        self.rpc_states = LockedDict()
         self.server4 = None
         self.server6 = None
         if not hostv4:
@@ -75,6 +79,16 @@ class DHT(object):
             )
             self.server6_thread.daemon = True
             self.server6_thread.start()
+            self.fw_sock6 = socket.socket(
+                socket.AF_INET6,
+                socket.SOCK_DGRAM
+            )
+            self.fw_sock6.setsockopt(
+                socket.IPPROTO_IPV6,
+                socket.IPV6_V6ONLY,
+                True,
+            )
+            self.fw_sock6.bind((listen_hostv6, port + 1))
         if hostv4 is not None:
             self.server4 = DHTServer(
                 (listen_hostv4, port),
@@ -87,6 +101,11 @@ class DHT(object):
             )
             self.server4_thread.daemon = True
             self.server4_thread.start()
+            self.fw_sock4 = socket.socket(
+                socket.AF_INET,
+                socket.SOCK_DGRAM
+            )
+            self.fw_sock4.bind((listen_hostv4, port + 1))
         if port_map:
             if not upnp.try_map_port(port):
                 print("UPnP could not map port")
@@ -103,16 +122,19 @@ class DHT(object):
         if self.server4:
             self.server4.shutdown()
             self.server4.server_close()
+            self.fw_sock4.close()
         if self.server6:
             self.server6.shutdown()
             self.server6.server_close()
+            self.fw_sock6.close()
 
     def iterative_find_nodes(self, key, boot_peer=None):
         shortlist = Shortlist(Config.K, key, self.peer.id)
         shortlist.update(self.buckets.nearest_nodes(key))
         if boot_peer:
             rpc_id = random_id()
-            self.rpc_ids[rpc_id] = shortlist
+            with self.rpc_states as states:
+                states[rpc_id] = shortlist
             shortlist.updated.clear()
             boot_peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
             shortlist.updated.wait(Config.SLEEP_WAIT)
@@ -123,7 +145,8 @@ class DHT(object):
                 for peer in nearest_nodes:
                     shortlist.mark(peer)
                     rpc_id = random_id()
-                    self.rpc_ids[rpc_id] = shortlist
+                    with self.rpc_states as states:
+                        states[rpc_id] = shortlist
                     shortlist.updated.clear()
                     peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
                     shortlist.updated.wait(Config.SLEEP_WAIT)
@@ -148,7 +171,8 @@ class DHT(object):
                 for peer in nearest_nodes:
                     shortlist.mark(peer)
                     rpc_id = random_id()
-                    self.rpc_ids[rpc_id] = shortlist
+                    with self.rpc_states as states:
+                        states[rpc_id] = shortlist
                     shortlist.updated.clear()
                     peer.find_value(
                         key,
@@ -200,6 +224,11 @@ class DHT(object):
             except TypeError:
                 pass
 
+    def _len_states(self, rpc_id):
+        """ Return length of rpc states """
+        with self.rpc_states as states:
+            return len(states[rpc_id])
+
     def _bootstrap(self, boot_host, boot_port):
         addr = socket.getaddrinfo(boot_host, boot_port)[0][4][0]
         ipaddr = ipaddress.ip_address(sixunicode(addr))
@@ -209,42 +238,53 @@ class DHT(object):
             boot_peer = Peer(boot_port, 0, hostv4=str(ipaddr))
 
         rpc_id = random_id()
-        self.rpc_ids[rpc_id] = [time.time()]
+        with self.rpc_states as states:
+            states[rpc_id] = [time.time()]
         boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
         time.sleep(Config.SLEEP_WAIT)
 
         peer_found = False
-        if len(self.rpc_ids[rpc_id]) > 1:
+
+        if self._len_states(rpc_id) > 1:
             try:
-                message = self.rpc_ids[rpc_id][1]
+                with self.rpc_states as states:
+                    message = states[rpc_id][1]
                 boot_peer = Peer(*message[Message.ALL_ADDR], is_bytes=True)
                 peer_found = True
             except KeyError:
-                self.rpc_ids[rpc_id].pop(1)
+                with self.rpc_states as states:
+                    states[rpc_id].pop(1)
         if not peer_found:
             time.sleep(Config.SLEEP_WAIT * 3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
-            if len(self.rpc_ids[rpc_id]) > 1:
-                self._discov_result(self.rpc_ids[rpc_id])
+            if self._len_states(rpc_id) > 1:
+                with self.rpc_states as states:
+                    self._discov_result(states[rpc_id])
             else:
                 raise DHT.NetworkError("Cannot boot DHT")
-        del self.rpc_ids[rpc_id]
+        with self.rpc_states as states:
+            del states[rpc_id]
 
         rpc_id = random_id()
-        self.rpc_ids[rpc_id] = [time.time()]
+
+        with self.rpc_states as states:
+            states[rpc_id] = [time.time()]
         boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
         time.sleep(Config.SLEEP_WAIT)
 
-        if len(self.rpc_ids[rpc_id]) > 2:
-            self._discov_result(self.rpc_ids[rpc_id])
+        if self._len_states(rpc_id) > 2:
+            with self.rpc_states as states:
+                self._discov_result(states[rpc_id])
         else:
             time.sleep(Config.SLEEP_WAIT * 3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
-            if len(self.rpc_ids[rpc_id]) > 1:
-                self._discov_result(self.rpc_ids[rpc_id])
+            if self._len_states(rpc_id) > 1:
+                with self.rpc_states as states:
+                    self._discov_result(states[rpc_id])
             else:
                 raise DHT.NetworkError("Cannot boot DHT")
-        del self.rpc_ids[rpc_id]
+        with self.rpc_states as states:
+            del states[rpc_id]
 
         self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
         if len(self.buckets.nearest_nodes(self.peer.id)) < 1:
@@ -257,13 +297,14 @@ class DHT(object):
         if not encoding:
             encoding = self.encoding
         hashed_key = hash_function(msgpack.dumps(key))
-        if hashed_key in self.data:
-            res = self.data[hashed_key]
-        else:
-            res = self.iterative_find_value(hashed_key)
-        if encoding:
-            res = msgpack.loads(res, encoding=encoding)
-        return res
+        with self.data as data:
+            if hashed_key in data:
+                res = data[hashed_key]
+            else:
+                res = self.iterative_find_value(hashed_key)
+            if encoding:
+                res = msgpack.loads(res, encoding=encoding)
+            return res
 
     def __getitem__(self, key):
         return self.get(key)
@@ -275,7 +316,8 @@ class DHT(object):
             value = msgpack.dumps(value, encoding=encoding)
         hashed_key = hash_function(msgpack.dumps(key))
         nearest_nodes = self.iterative_find_nodes(hashed_key)
-        self.data[hashed_key] = value
+        with self.data as data:
+            data[hashed_key] = value
         for node in nearest_nodes:
             node.store(hashed_key, value, dht=self, peer_id=self.peer.id)
 
