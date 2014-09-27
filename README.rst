@@ -25,6 +25,15 @@ To use DHT3k in a project::
     dht = dht3k.DHT(zero_config=True)
     dht["key"] = b"value"
 
+Optional dependencies
+---------------------
+
+To improve performance and quality of the service install these modules:
+
+* miniupnpc
+* kyotocabinet
+
+
 Features
 --------
 

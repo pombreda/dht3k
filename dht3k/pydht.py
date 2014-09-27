@@ -5,27 +5,20 @@ import socket
 import ipaddress
 import threading
 import time
-import contextlib
 
 from .bucketset import BucketSet
-from .hashing   import hash_function, random_id, id_bytes
+from .hashing   import hash_function, random_id
 from .peer      import Peer
 from .shortlist import Shortlist
 from .helper    import sixunicode
 from .server    import DHTServer, DHTRequestHandler
-from .const     import Message
+from .const     import Message, Config
 
-# TODO move this to const
-k = 20
-alpha = 3
-id_bits = id_bytes * 8
-iteration_sleep = 1
-
-Shortlist.iteration_sleep = iteration_sleep
 
 # TODO: Maintainance thread / rpc_list cleanup
 
 __all__ = ['DHT']
+
 
 class DHT(object):
 
@@ -50,7 +43,7 @@ class DHT(object):
         self.encoding = default_encoding
         self.peer = Peer(port, id_, hostv4, hostv6)
         self.data = {}
-        self.buckets = BucketSet(k, id_bits, self.peer.id)
+        self.buckets = BucketSet(Config.K, Config.ID_BITS, self.peer.id)
         self.rpc_ids = {}  # should probably have a lock for this
         self.server4 = None
         self.server6 = None
@@ -110,25 +103,25 @@ class DHT(object):
             self.server6.server_close()
 
     def iterative_find_nodes(self, key, boot_peer=None):
-        shortlist = Shortlist(k, key, self.peer.id)
+        shortlist = Shortlist(Config.K, key, self.peer.id)
         shortlist.update(self.buckets.nearest_nodes(key))
         if boot_peer:
             rpc_id = random_id()
             self.rpc_ids[rpc_id] = shortlist
             shortlist.updated.clear()
             boot_peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
-            shortlist.updated.wait(iteration_sleep)
+            shortlist.updated.wait(Config.SLEEP_WAIT)
         start = time.time()
         try:
             while (not shortlist.complete()):
-                nearest_nodes = shortlist.get_next_iteration(alpha)
+                nearest_nodes = shortlist.get_next_iteration(Config.ALPHA)
                 for peer in nearest_nodes:
                     shortlist.mark(peer)
                     rpc_id = random_id()
                     self.rpc_ids[rpc_id] = shortlist
                     shortlist.updated.clear()
                     peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
-                    shortlist.updated.wait(iteration_sleep)
+                    shortlist.updated.wait(Config.SLEEP_WAIT)
             return shortlist.results()
         finally:
             end = time.time()
@@ -141,12 +134,12 @@ class DHT(object):
             ))
 
     def iterative_find_value(self, key):
-        shortlist = Shortlist(k, key, self.peer.id)
+        shortlist = Shortlist(Config.K, key, self.peer.id)
         shortlist.update(self.buckets.nearest_nodes(key))
         start = time.time()
         try:
             while (not shortlist.complete()):
-                nearest_nodes = shortlist.get_next_iteration(alpha)
+                nearest_nodes = shortlist.get_next_iteration(Config.ALPHA)
                 for peer in nearest_nodes:
                     shortlist.mark(peer)
                     rpc_id = random_id()
@@ -158,7 +151,7 @@ class DHT(object):
                         dht=self,
                         peer_id=self.peer.id
                     )
-                    shortlist.updated.wait(iteration_sleep)
+                    shortlist.updated.wait(Config.SLEEP_WAIT)
                     if shortlist.completion_value.done():
                         return shortlist.completion_result()
             return shortlist.completion_result()
@@ -213,7 +206,7 @@ class DHT(object):
         rpc_id = random_id()
         self.rpc_ids[rpc_id] = [time.time()]
         boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
-        time.sleep(1)
+        time.sleep(Config.SLEEP_WAIT)
 
         peer_found = False
         if len(self.rpc_ids[rpc_id]) > 1:
@@ -224,7 +217,7 @@ class DHT(object):
             except KeyError:
                 self.rpc_ids[rpc_id].pop(1)
         if not peer_found:
-            time.sleep(3)
+            time.sleep(Config.SLEEP_WAIT * 3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
             if len(self.rpc_ids[rpc_id]) > 1:
                 self._discov_result(self.rpc_ids[rpc_id])
@@ -235,12 +228,12 @@ class DHT(object):
         rpc_id = random_id()
         self.rpc_ids[rpc_id] = [time.time()]
         boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
-        time.sleep(1)
+        time.sleep(Config.SLEEP_WAIT)
 
         if len(self.rpc_ids[rpc_id]) > 2:
             self._discov_result(self.rpc_ids[rpc_id])
         else:
-            time.sleep(3)
+            time.sleep(Config.SLEEP_WAIT * 3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
             if len(self.rpc_ids[rpc_id]) > 1:
                 self._discov_result(self.rpc_ids[rpc_id])
@@ -250,7 +243,7 @@ class DHT(object):
 
         self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
         if len(self.buckets.nearest_nodes(self.peer.id)) < 1:
-            time.sleep(3)
+            time.sleep(Config.SLEEP_WAIT * 3)
             self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
             if len(self.buckets.nearest_nodes(self.peer.id)) < 1:
                 raise DHT.NetworkError("Cannot boot DHT")

@@ -2,15 +2,15 @@ import hashlib
 import os
 import six
 
-# TODO move this to const
-id_bytes = 32
+from .const import Config
+
 
 if six.PY3:  # pragma: no cover
     def bytes2int(data):
         return int.from_bytes(data, 'big')  # Network oder (important)
 
     def int2bytes(value):
-        return value.to_bytes(id_bytes, 'big')  # Network oder (important)
+        return value.to_bytes(Config.ID_BYTES, 'big')  # Network oder (important)
 else:  # pragma: no cover
     def bytes2int(str):
         return int(str.encode('hex'), 16)
@@ -41,7 +41,7 @@ else:  # pragma: no cover
         if len(h) > 1 and h[0:2] == '0x':
             h = h[2:]
 
-        add = id_bytes * 2 - len(h)
+        add = Config.ID_BYTES * 2 - len(h)
         h = "0" * add + h
 
         return h.decode('hex')
@@ -53,4 +53,4 @@ def hash_function(data):
 
 
 def random_id(seed=None):
-    return os.urandom(id_bytes)
+    return os.urandom(Config.ID_BYTES)

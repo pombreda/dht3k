@@ -3,10 +3,10 @@ import concurrent.futures as futures
 
 from .peer    import Peer
 from .hashing import bytes2int
+from .const   import Config
 
 
 class Shortlist(object):
-    iteration_sleep = 1
 
     def __init__(self, k, key, my_id):
         self.k                = k
@@ -24,7 +24,7 @@ class Shortlist(object):
 
     def completion_result(self):
         try:
-            return self.completion_value.result(Shortlist.iteration_sleep)
+            return self.completion_value.result(Config.SLEEP_WAIT)
         except futures.TimeoutError:
             raise KeyError("Not found due network timeout")
 

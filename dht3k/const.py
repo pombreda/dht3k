@@ -1,6 +1,15 @@
 """ Constants for pydht """
 
 
+class Config(object):
+    """ Config constants """
+    K          = 20
+    ALPHA      = 3
+    ID_BYTES   = 32
+    ID_BITS    = ID_BYTES * 8
+    SLEEP_WAIT = 1
+
+
 class Message(object):
     """ Constants to use in message encoding """
     PING          = 0
