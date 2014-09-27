@@ -54,11 +54,11 @@ class BucketSet(object):
                     if from_pong:
                         bucket.popitem(-1)
                         items = list(bucket.items())
-                        # Putting the pinged node in the 3/4 (%75) of the
+                        # Putting the pinged node in the 1/4 (%25) of the
                         # bucket is a simple async emultion of the protocol
                         # defined by kademlia, I hope it works ;-)
                         items.insert(
-                            int(self.bucket_size * 0.75),
+                            int(self.bucket_size * 0.25),
                             (
                                 peer.id,
                                 peer_tuple
@@ -103,6 +103,9 @@ class BucketSet(object):
                 ipeer = bytes2int(peer[1])
                 return ikey ^ ipeer
             peers = self.peers()
+            # TODO: We can define nodes that returned a ping as nearer
+            # so it will first return truly live nodes and then possibly
+            # live nodes
             best_peers = heapq.nsmallest(num_results, peers, keyfunction)
             return [Peer(
                 *peer,

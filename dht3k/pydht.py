@@ -25,6 +25,8 @@ from .log       import log_to_stderr, l
 #       a factor in the sleep statement for bucket refresh
 # TODO: data to disk (optional)
 # TODO: async interface (futures)
+# TODO: prevent peer_id flooding
+# TODO: move nodes that are definitly online in front
 # TODO: more/better unittest + 100% coverage
 # TODO: no duplicated nodes into shortlist!
 # TODO: what about IP changes?
@@ -39,6 +41,7 @@ __all__ = ['DHT']
 
 class DHT(object):
 
+    _log_enabled = False
     MaxSizeException = excepions.MaxSizeException
     NetworkError     = excepions.NetworkError
 
@@ -58,8 +61,9 @@ class DHT(object):
             log              = True,
             debug            = True,
     ):
-        if log:
+        if log and not DHT._log_enabled:
             log_to_stderr(debug)
+            DHT._log_enabled = True
         if not id_:
             id_ = random_id()
         if port < 1024:
