@@ -176,7 +176,7 @@ class DHT(object):
                         states[rpc_id] = shortlist
                     shortlist.updated.clear()
                     peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
-                    shortlist.updated.wait(Config.SLEEP_WAIT)
+                shortlist.updated.wait(Config.SLEEP_WAIT)
             return shortlist.results()
         finally:
             end = time.time()
@@ -208,9 +208,9 @@ class DHT(object):
                         dht=self,
                         peer_id=self.peer.id
                     )
-                    shortlist.updated.wait(Config.SLEEP_WAIT)
-                    if shortlist.completion_value.done():
-                        return shortlist.completion_result()
+                shortlist.updated.wait(Config.SLEEP_WAIT)
+                if shortlist.completion_value.done():
+                    return shortlist.completion_result()
             return shortlist.completion_result()
         finally:
             end = time.time()
