@@ -48,7 +48,7 @@ class Peer(object):
 
     def addressv6(self):
         return (str(self.hostv6), self.port)
-        
+
     def __repr__(self):
         return repr(self.astuple())
 

@@ -1,5 +1,6 @@
 """ Trying to map the port """
 
+from .log import l
 
 def try_map_port(port):
     """ Try to map a port """
@@ -24,4 +25,5 @@ def try_map_port(port):
             return True
         return False
     except Exception:
+        l.exception("Portmapping failed")
         return False

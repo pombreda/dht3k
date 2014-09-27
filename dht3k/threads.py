@@ -79,7 +79,7 @@ def run_bucket_refresh(dht):  # noqa
                     refresh_bucket(x)
                     l.info("Refreshed bucket %d", x)
                     if dht.firewalled:
-                        f = 10
+                        f = 100
                     else:
                         f = 1
                     if dht.stop.wait(Config.BUCKET_REFRESH * f):

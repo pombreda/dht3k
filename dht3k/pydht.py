@@ -26,6 +26,8 @@ from .log       import log_to_stderr, l
 # TODO: data to disk (optional)
 # TODO: async interface (futures)
 # TODO: more/better unittest + 100% coverage
+# TODO: no duplicated nodes into shortlist!
+# TODO: what about IP changes?
 # TODO: pep8
 # TODO: lint
 # TODO: documentaion
