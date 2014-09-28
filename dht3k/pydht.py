@@ -22,10 +22,13 @@ from .log       import log_to_stderr, l
 # TODO: Maintainance thread / rpc_list cleanup
 # TODO: change maintainance to make non firewalled nodes more public
 #       a factor in the sleep statement for bucket refresh
+# TODO: All RPC should be subject to GC
 # TODO: data to disk (optional)
 # TODO: async interface (futures)
 # TODO: more/better unittest + 100% coverage
 # TODO: no duplicated nodes into shortlist! -> to ordered dict
+# TODO: hash rpc_id reply to render data unusable (for udp IP spoofing, 
+#       hubbing)
 # TODO: what about IP changes?
 # 1. Is there a binding problem?
 # 2. Refactor address discover and make maint-thread
