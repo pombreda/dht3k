@@ -1,6 +1,7 @@
 """ Anything to do with threading and background maintainance """
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import time
 
 from .const   import Config
 from .log     import l
@@ -96,6 +97,38 @@ def run_bucket_refresh(dht):  # noqa
             raise
         finally:
             l.info("run_bucket_refresh ended")
+
+    t = threading.Thread(target=task)
+    t.setDaemon(True)
+    t.start()
+    return t
+
+
+def run_rpc_cleanup(dht):
+    """ Remove stale RPC from rpc_states dict """
+
+    def task():
+        """ Run the task """
+        try:
+            while True:
+                dht.stop.wait(Config.RPC_TIMEOUT)
+                with dht.rpc_states as states:
+                    now = time.time()
+                    remove = []
+                    for key in states.keys():
+                        start = states[key][0]
+                        if (now - start) > Config.RPC_TIMEOUT:
+                            remove.append(key)
+                    l.info("Found %d stale rpc states", len(remove))
+                    for key in remove:
+                        del states[key]
+                if dht.stop.is_set():
+                    return
+        except:  # noqa
+            l.exception("run_rpc_cleanup failed")
+            raise
+        finally:
+            l.info("run_rpc_cleanup ended")
 
     t = threading.Thread(target=task)
     t.setDaemon(True)

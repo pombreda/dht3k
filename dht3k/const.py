@@ -21,6 +21,7 @@ class Config(object):
     BUCKET_REFRESH = 1200  # NATs should all be timeouted after that time!
     FIREWALL_CHECK = 3600
     PORT           = 7339
+    RPC_TIMEOUT    = 30
     WORKERS        = 40
     NETWORK_ID     = (
         b'\xc4\x82{\x0e\xf3\x99\x9f\x10.m=\x12\xef3\x19['

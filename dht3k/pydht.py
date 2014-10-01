@@ -19,14 +19,9 @@ from .          import threads
 from .log       import log_to_stderr, l
 
 
-# TODO: Maintainance thread / rpc_list cleanup
-# TODO: change maintainance to make non firewalled nodes more public
-#       a factor in the sleep statement for bucket refresh
-# TODO: All RPC should be subject to GC
 # TODO: data to disk (optional)
 # TODO: async interface (futures)
 # TODO: more/better unittest + 100% coverage
-# TODO: no duplicated nodes into shortlist! -> to ordered dict
 # TODO: what about IP changes?
 # 1. Is there a binding problem?
 # 2. Refactor address discover and make maint-thread
@@ -147,13 +142,15 @@ class DHT(object):
         else:
             if boot_host:
                 self._bootstrap(boot_host, boot_port)
-        self.bucket_refrsh = threads.run_bucket_refresh(self)
+        self.bucket_refrsh  = threads.run_bucket_refresh(self)
         self.check_firewall = threads.run_check_firewalled(self)
+        self.rpc_cleanup    = threads.run_rpc_cleanup(self)
 
     def close(self):
         self.stop.set()
         self.bucket_refrsh.join()
         self.check_firewall.join()
+        self.rpc_cleanup.join()
         if self.server4:
             self.server4.shutdown()
             self.server4.server_close()
