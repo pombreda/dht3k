@@ -282,6 +282,7 @@ class DHTServer(ThreadPoolMixIn, socketserver.UDPServer):
             socketserver.UDPServer.address_family = socket.AF_INET6
         else:
             socketserver.UDPServer.address_family = socket.AF_INET
+        ThreadPoolMixIn.__init__(self)
         socketserver.UDPServer.__init__(
             self,
             host_address,

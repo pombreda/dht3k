@@ -16,6 +16,9 @@ class ThreadPoolMixIn:
     # main process
     daemon_threads = False
 
+    def __init__(self):
+        self.idle = threading.Event()
+
     def process_request_thread(self, request, client_address):
         """Same as in BaseServer but as a thread.
 
@@ -23,12 +26,15 @@ class ThreadPoolMixIn:
 
         """
         try:
+            self.idle.clear()
             self.finish_request(request, client_address)
             self.shutdown_request(request)
         except:  # noqa
             l.exception("Exception in request handler")
             self.handle_error(request, client_address)
             self.shutdown_request(request)
+        finally:
+            self.idle.set()
 
     def process_request(self, request, client_address):
         """Submit a new job to process the request."""

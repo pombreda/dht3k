@@ -160,6 +160,8 @@ class DHT(object):
         if self.server6:
             self.server6.shutdown()
             self.server6.server_close()
+        self.server4.idle.wait()
+        self.server6.idle.wait()
         if self.server4:
             self.fw_sock4.close()
         if self.server6:
