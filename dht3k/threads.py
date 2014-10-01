@@ -56,6 +56,7 @@ def run_check_firewalled(dht):
     t = threading.Thread(target=task)
     t.setDaemon(True)
     t.start()
+    return t
 
 def run_bucket_refresh(dht):  # noqa
     """ Refresh the buckets by finding nodes near that bucket """
@@ -93,3 +94,4 @@ def run_bucket_refresh(dht):  # noqa
     t = threading.Thread(target=task)
     t.setDaemon(True)
     t.start()
+    return t

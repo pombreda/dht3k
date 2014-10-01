@@ -147,18 +147,22 @@ class DHT(object):
         else:
             if boot_host:
                 self._bootstrap(boot_host, boot_port)
-        threads.run_bucket_refresh(self)
-        threads.run_check_firewalled(self)
+        self.bucket_refrsh = threads.run_bucket_refresh(self)
+        self.check_firewall = threads.run_check_firewalled(self)
 
     def close(self):
         self.stop.set()
+        self.bucket_refrsh.join()
+        self.check_firewall.join()
         if self.server4:
             self.server4.shutdown()
             self.server4.server_close()
-            self.fw_sock4.close()
         if self.server6:
             self.server6.shutdown()
             self.server6.server_close()
+        if self.server4:
+            self.fw_sock4.close()
+        if self.server6:
             self.fw_sock6.close()
 
     def iterative_find_nodes(self, key, boot_peer=None):
