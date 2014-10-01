@@ -173,7 +173,7 @@ class DHT(object):
         if boot_peer:
             rpc_id, hash_id = rpc_id_pair()
             with self.rpc_states as states:
-                states[hash_id] = shortlist
+                states[hash_id] = [time.time(), shortlist]
             shortlist.updated.clear()
             boot_peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
             shortlist.updated.wait(Config.SLEEP_WAIT)
@@ -185,7 +185,7 @@ class DHT(object):
                     shortlist.mark(peer)
                     rpc_id, hash_id = rpc_id_pair()
                     with self.rpc_states as states:
-                        states[hash_id] = shortlist
+                        states[hash_id] = [time.time(), shortlist]
                     shortlist.updated.clear()
                     peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
                 shortlist.updated.wait(Config.SLEEP_WAIT)
@@ -212,7 +212,7 @@ class DHT(object):
                     shortlist.mark(peer)
                     rpc_id, hash_id = rpc_id_pair()
                     with self.rpc_states as states:
-                        states[hash_id] = shortlist
+                        states[hash_id] = [time.time(), shortlist]
                     shortlist.updated.clear()
                     peer.find_value(
                         key,
@@ -298,6 +298,7 @@ found     # noqa
         if not peer_found:
             time.sleep(Config.SLEEP_WAIT * 3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
+            time.sleep(Config.SLEEP_WAIT)
             if self._len_states(hash_id) > 1:
                 with self.rpc_states as states:
                     self._discov_result(states[hash_id])
@@ -319,6 +320,7 @@ found     # noqa
         else:
             time.sleep(Config.SLEEP_WAIT * 3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
+            time.sleep(Config.SLEEP_WAIT)
             if self._len_states(hash_id) > 1:
                 with self.rpc_states as states:
                     self._discov_result(states[hash_id])
@@ -331,6 +333,7 @@ found     # noqa
         if len(self.buckets.nearest_nodes(self.peer.id)) < 1:
             time.sleep(Config.SLEEP_WAIT * 3)
             self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
+            time.sleep(Config.SLEEP_WAIT)
             if len(self.buckets.nearest_nodes(self.peer.id)) < 1:
                 raise DHT.NetworkError("Cannot boot DHT")
         self.boot_peer = boot_peer

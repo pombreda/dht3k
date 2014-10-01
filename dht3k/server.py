@@ -271,7 +271,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
     def handle_found_nodes(self, message):
         hash_id = message[Message.RPC_ID]
         with self.server.dht.rpc_states as states:
-            shortlist = states[hash_id]
+            shortlist = states[hash_id][1]
             del states[hash_id]
             nearest_nodes = [Peer(
                 *peer,
@@ -282,7 +282,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
     def handle_found_value(self, message):
         hash_id = message[Message.RPC_ID]
         with self.server.dht.rpc_states as states:
-            shortlist = states[hash_id]
+            shortlist = states[hash_id][1]
             del states[hash_id]
             shortlist.set_complete(message[Message.VALUE])
 
