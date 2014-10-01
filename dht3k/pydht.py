@@ -27,8 +27,6 @@ from .log       import log_to_stderr, l
 # TODO: async interface (futures)
 # TODO: more/better unittest + 100% coverage
 # TODO: no duplicated nodes into shortlist! -> to ordered dict
-# TODO: hash rpc_id reply to render data unusable (for udp IP spoofing, 
-#       hubbing)
 # TODO: what about IP changes?
 # 1. Is there a binding problem?
 # 2. Refactor address discover and make maint-thread

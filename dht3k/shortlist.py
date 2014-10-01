@@ -38,9 +38,9 @@ class Shortlist(object):
 
     def _update_one(self, node):
         if (
-            node.id == self.key or
-            node.id == self.my_id or
-            self.completion_value.done()
+                node.id == self.key or
+                node.id == self.my_id or
+                self.completion_value.done()
         ):
             return
         with self.lock:
@@ -54,8 +54,12 @@ class Shortlist(object):
                     self.list.insert(i, (node.astuple(), False))
                     self.list = self.list[:self.k]
                     break
-            if len(self.list) < self.k:
-                self.list.append((node.astuple(), False))
+            else:
+                # Executed if we hit no break above which means
+                # 1. The new node isn't duplicated
+                # 2. The new node is not nearer than any other nodes
+                if len(self.list) < self.k:
+                    self.list.append((node.astuple(), False))
 
     def mark(self, node):
         with self.lock:
