@@ -76,12 +76,6 @@ def run_bucket_refresh(dht):  # noqa
     def task():
         """ Run the task """
         try:
-            if dht.boot_peer:
-                for x in range(Config.ID_BITS):
-                    refresh_bucket(x)
-                    l.debug("Refreshed bucket %d", x)
-                    if dht.stop.wait(Config.SLEEP_WAIT * 20):
-                        return
             while True:
                 for x in range(Config.ID_BITS):
                     refresh_bucket(x)

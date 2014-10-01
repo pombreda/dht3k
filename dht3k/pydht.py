@@ -142,7 +142,7 @@ class DHT(object):
                 l.warning("UPnP could not map port")
         if zero_config:
             try:
-                self._bootstrap("54.164.229.197", Config.PORT)
+                self._bootstrap("31.171.244.153", Config.PORT)
             except DHT.NetworkError:
                 self._bootstrap("2001:470:7:ab::2", Config.PORT)
         else:
