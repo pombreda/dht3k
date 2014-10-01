@@ -237,36 +237,37 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
         id_ = message[Message.PEER_ID]
         peer = self.peer_from_client_address(self.client_address, id_)
         response_socket = self.request[1]
-        with self.server.dht.data as data:
-            if find_value and (key in data):
-                value = data[key]
-                peer.found_value(
-                    id_,
-                    value,
-                    rpc_to_hash_id(
-                        message[Message.RPC_ID]
-                    ),
-                    dht=self.server.dht,
-                    peer_id=self.server.dht.peer.id,
-                )
-            else:
-                nearest_nodes = self.server.dht.buckets.nearest_nodes(id_)
-                if not nearest_nodes:
-                    nearest_nodes.append(self.server.dht.peer)
-                nearest_nodes = [
-                    nearest_peer.astuple(
-                        for_export=True
-                    ) for nearest_peer in nearest_nodes
-                ]
-                peer.found_nodes(
-                    id_,
-                    nearest_nodes,
-                    rpc_to_hash_id(
-                        message[Message.RPC_ID],
-                    ),
-                    dht=self.server.dht,
-                    peer_id=self.server.dht.peer.id,
-                )
+        if self.server.dht.data:
+            with self.server.dht.data as data:
+                if find_value and (key in data):
+                    value = data[key]
+                    peer.found_value(
+                        id_,
+                        value,
+                        rpc_to_hash_id(
+                            message[Message.RPC_ID]
+                        ),
+                        dht=self.server.dht,
+                        peer_id=self.server.dht.peer.id,
+                    )
+                    return
+        nearest_nodes = self.server.dht.buckets.nearest_nodes(id_)
+        if not nearest_nodes:
+            nearest_nodes.append(self.server.dht.peer)
+        nearest_nodes = [
+            nearest_peer.astuple(
+                for_export=True
+            ) for nearest_peer in nearest_nodes
+        ]
+        peer.found_nodes(
+            id_,
+            nearest_nodes,
+            rpc_to_hash_id(
+                message[Message.RPC_ID],
+            ),
+            dht=self.server.dht,
+            peer_id=self.server.dht.peer.id,
+        )
 
     def handle_found_nodes(self, message):
         hash_id = message[Message.RPC_ID]
@@ -288,8 +289,9 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
 
     def handle_store(self, message):
         key = message[Message.ID]
-        with self.server.dht.data as data:
-            data[key] = message[Message.VALUE]
+        if self.server.dht.data:
+            with self.server.dht.data as data:
+                data[key] = message[Message.VALUE]
 
 
 class DHTServer(ThreadPoolMixIn, socketserver.UDPServer):

@@ -12,13 +12,15 @@ from .peer      import Peer
 from .shortlist import Shortlist
 from .helper    import sixunicode, LockedDict
 from .server    import DHTServer, DHTRequestHandler
-from .const     import Message, Config
+from .const     import Message, Config, Storage
 from .          import upnp
 from .          import excepions
 from .          import threads
 from .log       import log_to_stderr, l
 
 
+# TODO: check if we have a RPC state leak
+# TODO: keep the same id (if port/IPs are the same??)
 # TODO: data to disk (optional)
 # TODO: async interface (futures)
 # TODO: more/better unittest + 100% coverage
@@ -54,6 +56,7 @@ class DHT(object):
             default_encoding = None,
             port_map         = True,
             network_id       = Config.NETWORK_ID,
+            storage          = Storage.MEMORY,
             log              = True,
             debug            = True,
     ):
@@ -71,7 +74,10 @@ class DHT(object):
         self.stop = threading.Event()
         self.encoding = default_encoding
         self.peer = Peer(port, id_, hostv4, hostv6)
-        self.data = LockedDict()
+        if storage == Storage.NONE:
+            self.data = None
+        else:
+            self.data = LockedDict()
         self.buckets = BucketSet(Config.K, Config.ID_BITS, self.peer.id)
         self.rpc_states = LockedDict()
         self.server4 = None
@@ -340,14 +346,16 @@ found     # noqa
         if not encoding:
             encoding = self.encoding
         hashed_key = hash_function(msgpack.dumps(key))
-        with self.data as data:
-            if hashed_key in data:
-                res = data[hashed_key]
-            else:
-                res = self.iterative_find_value(hashed_key)
-            if encoding:
-                res = msgpack.loads(res, encoding=encoding)
-            return res
+        res = None
+        if self.data:
+            with self.data as data:
+                if hashed_key in data:
+                    res = data[hashed_key]
+        if res is None:
+            res = self.iterative_find_value(hashed_key)
+        if encoding:
+            res = msgpack.loads(res, encoding=encoding)
+        return res
 
     def __getitem__(self, key):
         return self.get(key)
@@ -359,8 +367,9 @@ found     # noqa
             value = msgpack.dumps(value, encoding=encoding)
         hashed_key = hash_function(msgpack.dumps(key))
         nearest_nodes = self.iterative_find_nodes(hashed_key)
-        with self.data as data:
-            data[hashed_key] = value
+        if self.data:
+            with self.data as data:
+                data[hashed_key] = value
         for node in nearest_nodes:
             node.store(hashed_key, value, dht=self, peer_id=self.peer.id)
 
