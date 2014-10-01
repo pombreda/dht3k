@@ -22,6 +22,10 @@ class Config(object):
     FIREWALL_CHECK = 3600
     PORT           = 7339
     WORKERS        = 40
+    NETWORK_ID     = (
+        b'\xc4\x82{\x0e\xf3\x99\x9f\x10.m=\x12\xef3\x19['
+        b'Q\xac\x14G\xc9\x8ft\xb5\xb2z\xb6\x84\x91$\xac\x03'
+    )
 
 
 config_dict = _consts_to_dict(Config)
@@ -56,5 +60,6 @@ class Message(object):
     CLI_ADDR      = 14
     FW_PING       = 15
     FW_PONG       = 16
+    NETWORK_ID    = 17
 
 message_dict = _consts_to_dict(Message)

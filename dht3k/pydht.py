@@ -60,6 +60,7 @@ class DHT(object):
             zero_config      = False,
             default_encoding = None,
             port_map         = True,
+            network_id       = Config.NETWORK_ID,
             log              = True,
             debug            = True,
     ):
@@ -83,6 +84,7 @@ class DHT(object):
         self.server4 = None
         self.server6 = None
         self.boot_peer = None
+        self.network_id = network_id
         if not hostv4:
             if zero_config:
                 hostv4 = ""

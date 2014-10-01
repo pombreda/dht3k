@@ -72,6 +72,9 @@ class Peer(object):
 
     def _sendmessage(self, message, dht, peer_id):
         message[Message.PEER_ID] = peer_id  # more like sender_id
+        message[Message.NETWORK_ID] = hash_function(
+            peer_id + dht.network_id
+        )
         encoded = msgpack.dumps(message)
         if len(encoded) > MinMax.MAX_MSG_SIZE:
             raise MaxSizeException(
@@ -94,7 +97,11 @@ class Peer(object):
             except OSError:
                 l.info("Could not send to %s", self.hostv6)
 
-    def _fw_sendmessage(self, message, dht):
+    def _fw_sendmessage(self, message, dht, peer_id):
+        message[Message.PEER_ID] = peer_id  # more like sender_id
+        message[Message.NETWORK_ID] = hash_function(
+            peer_id + dht.network_id
+        )
         encoded = msgpack.dumps(message)
         if len(encoded) > MinMax.MAX_MSG_SIZE:
             raise MaxSizeException(
@@ -142,12 +149,12 @@ class Peer(object):
             message[Message.RPC_ID] = rpc_id
         self._sendmessage(message, dht, peer_id=peer_id)
 
-    def fw_pong(self, dht):
+    def fw_pong(self, dht, peer_id):
         message = {
             Message.MESSAGE_TYPE: Message.FW_PONG,
             Message.ID: self.id,
         }
-        self._fw_sendmessage(message, dht)
+        self._fw_sendmessage(message, dht, peer_id=peer_id)
 
     def store(self, key, value, dht, peer_id):
         message = {

@@ -13,6 +13,7 @@ from .helper    import sixunicode
 from .peer      import Peer
 from .threads   import ThreadPoolMixIn
 from .log       import l
+from .hashing   import hash_function
 
 
 def _get_lookup():
@@ -74,6 +75,7 @@ def _get_lookup():
 
     return {
         Message.PEER_ID: lambda x: len(x) == Config.ID_BYTES,
+        Message.NETWORK_ID: lambda x: len(x) == Config.ID_BYTES,
         Message.RPC_ID:  lambda x: len(x) == Config.ID_BYTES,
         Message.ID:  lambda x: len(x) == Config.ID_BYTES,
         Message.CLI_ADDR: verify_ip,
@@ -105,6 +107,16 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
                     )
                 )
                 return False
+        try:
+            network_id = hash_function(
+                message[Message.PEER_ID] + self.server.dht.network_id
+            )
+            if network_id != message[Message.NETWORK_ID]:
+                l.warn("Message from different network, ignoring")
+                return False
+        except KeyError:
+            l.warn("Incomplete message, ignoring")
+            return False
         return True
 
     def handle(self):
@@ -201,7 +213,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
         id_ = message[Message.PEER_ID]
         peer = self.peer_from_client_address(self.client_address, id_)
         l.info("Fw ping from %s", self.client_address)
-        peer.fw_pong(self.server.dht)
+        peer.fw_pong(self.server.dht, self.server.dht.peer.id)
 
     def handle_fw_pong(self, message):
         id_ = message[Message.ID]
