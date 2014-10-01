@@ -46,6 +46,7 @@ else:  # pragma: no cover
 
         return h.decode('hex')
 
+
 def hash_function(data):
     s = hashlib.sha256()
     s.update(data)
@@ -54,3 +55,12 @@ def hash_function(data):
 
 def random_id(seed=None):
     return os.urandom(Config.ID_BYTES)
+
+
+def rpc_to_hash_id(rpc_id):
+    return hash_function(rpc_id + Config.NETWORK_ID)
+
+
+def rpc_id_pair(seed=None):
+    rpc_id = random_id()
+    return (rpc_id, hash_function(rpc_id + Config.NETWORK_ID))

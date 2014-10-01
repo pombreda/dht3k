@@ -7,7 +7,7 @@ import threading
 import time
 
 from .bucketset import BucketSet
-from .hashing   import hash_function, random_id
+from .hashing   import hash_function, rpc_id_pair, random_id
 from .peer      import Peer
 from .shortlist import Shortlist
 from .helper    import sixunicode, LockedDict
@@ -173,9 +173,9 @@ class DHT(object):
         shortlist = Shortlist(Config.K, key, self.peer.id)
         shortlist.update(self.buckets.nearest_nodes(key))
         if boot_peer:
-            rpc_id = random_id()
+            rpc_id, hash_id = rpc_id_pair()
             with self.rpc_states as states:
-                states[rpc_id] = shortlist
+                states[hash_id] = shortlist
             boot_peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
             with shortlist.updated as up:
                 shortlist.updated.wait(Config.SLEEP_WAIT)
@@ -185,9 +185,9 @@ class DHT(object):
                 nearest_nodes = shortlist.get_next_iteration(Config.ALPHA)
                 for peer in nearest_nodes:
                     shortlist.mark(peer)
-                    rpc_id = random_id()
+                    rpc_id, hash_id = rpc_id_pair()
                     with self.rpc_states as states:
-                        states[rpc_id] = shortlist
+                        states[hash_id] = shortlist
                     peer.find_node(key, rpc_id, dht=self, peer_id=self.peer.id)
                 with shortlist.updated as up:
                     shortlist.updated.wait(Config.SLEEP_WAIT)
@@ -212,9 +212,9 @@ class DHT(object):
                 nearest_nodes = shortlist.get_next_iteration(Config.ALPHA)
                 for peer in nearest_nodes:
                     shortlist.mark(peer)
-                    rpc_id = random_id()
+                    rpc_id, hash_id = rpc_id_pair()
                     with self.rpc_states as states:
-                        states[rpc_id] = shortlist
+                        states[hash_id] = shortlist
                     peer.find_value(
                         key,
                         rpc_id,
@@ -267,10 +267,10 @@ found     # noqa
             except TypeError:
                 pass
 
-    def _len_states(self, rpc_id):
+    def _len_states(self, hash_id):
         """ Return length of rpc states """
         with self.rpc_states as states:
-            return len(states[rpc_id])
+            return len(states[hash_id])
 
     def _bootstrap(self, boot_host, boot_port):
         addr = socket.getaddrinfo(boot_host, boot_port)[0][4][0]
@@ -280,54 +280,54 @@ found     # noqa
         else:
             boot_peer = Peer(boot_port, 0, hostv4=str(ipaddr))
 
-        rpc_id = random_id()
+        rpc_id, hash_id = rpc_id_pair()
         with self.rpc_states as states:
-            states[rpc_id] = [time.time()]
+            states[hash_id] = [time.time()]
         boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
         time.sleep(Config.SLEEP_WAIT)
 
         peer_found = False
 
-        if self._len_states(rpc_id) > 1:
+        if self._len_states(hash_id) > 1:
             try:
                 with self.rpc_states as states:
-                    message = states[rpc_id][1]
+                    message = states[hash_id][1]
                 boot_peer = Peer(*message[Message.ALL_ADDR], is_bytes=True)
                 peer_found = True
             except KeyError:
                 with self.rpc_states as states:
-                    states[rpc_id].pop(1)
+                    states[hash_id].pop(1)
         if not peer_found:
             time.sleep(Config.SLEEP_WAIT * 3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
-            if self._len_states(rpc_id) > 1:
+            if self._len_states(hash_id) > 1:
                 with self.rpc_states as states:
-                    self._discov_result(states[rpc_id])
+                    self._discov_result(states[hash_id])
             else:
                 raise DHT.NetworkError("Cannot boot DHT")
         with self.rpc_states as states:
-            del states[rpc_id]
+            del states[hash_id]
 
-        rpc_id = random_id()
+        rpc_id, hash_id = rpc_id_pair()
 
         with self.rpc_states as states:
-            states[rpc_id] = [time.time()]
+            states[hash_id] = [time.time()]
         boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
         time.sleep(Config.SLEEP_WAIT)
 
-        if self._len_states(rpc_id) > 2:
+        if self._len_states(hash_id) > 2:
             with self.rpc_states as states:
-                self._discov_result(states[rpc_id])
+                self._discov_result(states[hash_id])
         else:
             time.sleep(Config.SLEEP_WAIT * 3)
             boot_peer.ping(self, self.peer.id, rpc_id = rpc_id)
-            if self._len_states(rpc_id) > 1:
+            if self._len_states(hash_id) > 1:
                 with self.rpc_states as states:
-                    self._discov_result(states[rpc_id])
+                    self._discov_result(states[hash_id])
             else:
                 raise DHT.NetworkError("Cannot boot DHT")
         with self.rpc_states as states:
-            del states[rpc_id]
+            del states[hash_id]
 
         self.iterative_find_nodes(random_id(), boot_peer=boot_peer)
         if len(self.buckets.nearest_nodes(self.peer.id)) < 1:

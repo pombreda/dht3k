@@ -6,7 +6,7 @@ import time
 import binascii
 
 from .peer    import Peer
-from .hashing import bytes2int, random_id
+from .hashing import bytes2int, rpc_id_pair
 from .log     import l
 from .const   import Config
 
@@ -80,9 +80,9 @@ class BucketSet(object):
                             *bucket.popitem(0)[1],
                             is_bytes=True
                         )
-                        rpc_id = random_id()
+                        rpc_id, hash_id = rpc_id_pair()
                         with server.dht.rpc_states as states:
-                            states[rpc_id] = [time.time()]
+                            states[hash_id] = [time.time()]
                         pop_peer.ping(
                             server.dht,
                             server.dht.peer.id,

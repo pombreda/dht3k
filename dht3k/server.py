@@ -13,7 +13,7 @@ from .helper    import sixunicode
 from .peer      import Peer
 from .threads   import ThreadPoolMixIn
 from .log       import l
-from .hashing   import hash_function
+from .hashing   import hash_function, rpc_to_hash_id
 
 
 def _get_lookup():
@@ -183,7 +183,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
     def handle_ping(self, message):
         id_ = message[Message.PEER_ID]
         try:
-            rpc_id = message[Message.RPC_ID]
+            hash_id = rpc_to_hash_id(message[Message.RPC_ID])
         except KeyError:
             rpc_id = None
 
@@ -197,7 +197,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             dht     = self.server.dht,
             peer_id = self.server.dht.peer.id,
             cpeer   = cpeer,
-            rpc_id  = rpc_id,
+            rpc_id  = hash_id,
         )
         if    (cpeer.addressv4 == apeer.addressv4 or
                cpeer.addressv6 == apeer.addressv6):
@@ -206,7 +206,7 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             dht     = self.server.dht,
             peer_id = self.server.dht.peer.id,
             cpeer   = cpeer,
-            rpc_id  = rpc_id,
+            rpc_id  = hash_id,
         )
 
     def handle_fw_ping(self, message):
@@ -223,9 +223,9 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
 
     def handle_pong(self, message):
         try:
-            rpc_id = message[Message.RPC_ID]
+            hash_id = message[Message.RPC_ID]
             with self.server.dht.rpc_states as states:
-                states[rpc_id].append(
+                states[hash_id].append(
                     message
                 )
             return True
@@ -243,7 +243,9 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
                 peer.found_value(
                     id_,
                     value,
-                    message[Message.RPC_ID],
+                    rpc_to_hash_id(
+                        message[Message.RPC_ID]
+                    ),
                     dht=self.server.dht,
                     peer_id=self.server.dht.peer.id,
                 )
@@ -259,16 +261,18 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
                 peer.found_nodes(
                     id_,
                     nearest_nodes,
-                    message[Message.RPC_ID],
+                    rpc_to_hash_id(
+                        message[Message.RPC_ID],
+                    ),
                     dht=self.server.dht,
                     peer_id=self.server.dht.peer.id,
                 )
 
     def handle_found_nodes(self, message):
-        rpc_id = message[Message.RPC_ID]
+        hash_id = message[Message.RPC_ID]
         with self.server.dht.rpc_states as states:
-            shortlist = states[rpc_id]
-            del states[rpc_id]
+            shortlist = states[hash_id]
+            del states[hash_id]
             nearest_nodes = [Peer(
                 *peer,
                 is_bytes=True
@@ -276,10 +280,10 @@ class DHTRequestHandler(socketserver.BaseRequestHandler):
             shortlist.update(nearest_nodes)
 
     def handle_found_value(self, message):
-        rpc_id = message[Message.RPC_ID]
+        hash_id = message[Message.RPC_ID]
         with self.server.dht.rpc_states as states:
-            shortlist = states[rpc_id]
-            del states[rpc_id]
+            shortlist = states[hash_id]
+            del states[hash_id]
             shortlist.set_complete(message[Message.VALUE])
 
     def handle_store(self, message):
