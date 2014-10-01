@@ -17,10 +17,11 @@ class Shortlist(object):
         self.lock             = threading.Lock()
         self.completion_value = futures.Future()
         self.completion_value.set_running_or_notify_cancel()
-        self.updated          = threading.Event()
+        self.updated          = threading.Condition()
 
     def set_complete(self, value):
-        self.updated.set()
+        with self.updated:
+            self.updated.notify_all()
         self.completion_value.set_result(value)
 
     def completion_result(self):
@@ -32,7 +33,8 @@ class Shortlist(object):
     def update(self, nodes):
         for node in nodes:
             self._update_one(node)
-        self.updated.set()
+        with self.updated as up:
+            self.updated.notify_all()
 
     def _update_one(self, node):
         if (
