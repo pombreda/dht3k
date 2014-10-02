@@ -70,6 +70,6 @@ message_dict = _consts_to_dict(Message)
 
 class Storage(object):
     """ Storage type """
-    NONE   = 0
-    MEMORY = 1
-    DISK   = 2
+    NONE   = None
+    MEMORY = "memory"
+    DISK   = "disk"
