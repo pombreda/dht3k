@@ -34,8 +34,10 @@ config_dict = _consts_to_dict(Config)
 
 class MinMax(object):
     """ Maximima and minima """
-    MAX_MSG_SIZE   = 3 * 1024
-    MAX_IP_LEN     = 128
+    MAX_MSG_SIZE   = 1420   # Tunnels - UPD6 Header
+                            # this should never cause
+                            # fragmentation
+    MAX_IP_LEN     = 16
     MIN_IP_LEN     = 4
     PEER_TUPLE_LEN = 4
 
