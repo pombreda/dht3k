@@ -1,5 +1,7 @@
+# pylint: disable=wildcard-import,unused-wildcard-import
 """ Hashing has been moved to lazymq """
-from lazymq import *
+from .const         import Config
+from lazymq.hashing import *
 
 def rpc_to_hash_id(rpc_id):
     return hash_function(rpc_id + Config.NETWORK_ID)

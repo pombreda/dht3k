@@ -19,6 +19,11 @@ from .          import threads
 from .log       import log_to_stderr, l
 
 
+# TODO: no republish (write docu why)
+# TODO: multi-value (per client GC)
+# TODO: get with value-limit
+# TODO: tcp (lazymq)
+# TODO: storage limit
 # TODO: check if we have a RPC state leak
 # TODO: keep the same id (if port/IPs are the same??)
 # TODO: data to disk (optional)
