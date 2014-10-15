@@ -30,16 +30,17 @@ setup(
     url='https://github.com/ganwell/dht3k',
     packages=[
         'dht3k',
+        'lazymq',
     ],
-    package_dir={'dht3k': 'dht3k'},
+    package_dir={
+        'dht3k': 'dht3k',
+        'lazymq': 'lazymq',
+    },
     include_package_data=True,
     install_requires=[
         "msgpack-python",
-        "six",
-        "futures",
-        "ipaddress",
         "mock",
-        "py.test",
+        "pytest",
     ],
     license='MIT',
     zip_safe=False,

@@ -24,8 +24,9 @@ clean-pyc:
 	find . -name '*~' -exec rm -f {} +
 
 lint:
-	pylama -l pep8,pyflakes,pylint -i E203,E272,E221,E251,E202,E271,C0302,W0511,F0401,R0201,C0325,C0326 dht3k
-	pylama -l pep8,pyflakes,pylint -i E203,E272,E221,E251,E202,E271,C0302,W0511,F0401,R0201,C0325,C0326 test
+	pylint -E dht3k
+	pylint -E lazymq
+	pylint -E test
 
 devtest:
 	py.test -x -s -v -m "not slowtest"

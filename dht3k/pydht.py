@@ -27,6 +27,7 @@ from .log       import log_to_stderr, l
 # TODO: what about IP changes?
 # 1. Is there a binding problem?
 # 2. Refactor address discover and make maint-thread
+# TODO: Consider sending multiple answers (split!) if EMSGSIZE occurs
 # TODO: pep8
 # TODO: lint
 # TODO: documentaion

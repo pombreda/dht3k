@@ -1,4 +1,5 @@
 """ Constants for pydht """
+import lazymq.const as lazyconst
 
 
 def _consts_to_dict(object_):
@@ -14,10 +15,10 @@ class Config(object):
     """ Config constants """
     K              = 20
     ALPHA          = 3
-    ID_BYTES       = 32
-    ID_BITS        = ID_BYTES * 8
     FW_PENALTY     = 2 ** (ID_BITS + 1)
     SLEEP_WAIT     = 1
+    ID_BYTES       = lazyconst.Config.HASH_BYTES
+    ID_BITS        = lazyconst.Config.HASH_BITS
     BUCKET_REFRESH = 1200  # NATs should all be timeouted after that time!
     FIREWALL_CHECK = 3600
     PORT           = 7339
