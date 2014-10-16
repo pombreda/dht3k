@@ -91,8 +91,9 @@ class LazyMQ(Protocol):
 
     def close(self):
         """ Closing everything """
-        for server in self._servers:
-            server.close()
+        # TODO: needed or not?
+        # for server in self._servers:
+        #     server.close()
         for sock in self._socks:
             sock.close()
         for conn in self._connections.values():
@@ -112,14 +113,18 @@ class LazyMQ(Protocol):
             ),
             const.Config.TIMEOUT,
         )
+        handler = self._handle_connection(reader, writer)
+        asyncio.async(
+            handler,
+            loop = self.loop,
+        )
         conn = Connection(
             reader,
-            writer
+            writer,
         )
         peer = writer.get_extra_info('peername')
         # for consistency get the peername from the socket!
         self._connections[peer] = conn
-        asyncio.async(self._handle_connection(reader, writer))
         return conn
 
     @asyncio.coroutine

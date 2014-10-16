@@ -4,13 +4,12 @@ import asyncio
 import msgpack
 import ipaddress
 
-from .struct  import Message, Connection
-from .hashing import random_id
-from .const   import Config, Status
-from .log     import l
+from .struct     import Message, Connection
+from .hashing    import random_id
+from .const      import Config, Status
+from .log        import l
+from .exceptions import BadMessage, ClosedException
 
-class BadMessage(Exception):
-    pass
 
 class Protocol(object):
     """ Partial/abstract class for the lazymq protocol.
@@ -22,6 +21,7 @@ class Protocol(object):
         self.encoding     = None
         self.port         = None
         self._connections = None
+        self.loop         = None
 
     @asyncio.coroutine
     def get_connection(
@@ -77,7 +77,9 @@ class Protocol(object):
         while True:
             try:
                 enclenb = yield from reader.readexactly(1)
-            except asyncio.IncompleteReadError:
+            except (
+                    asyncio.IncompleteReadError,
+            ):
                 # Before a message has started an incomplete read is ok:
                 # it just means the remote has garbage collected the conenction
                 self._close_conn(conn, peer)

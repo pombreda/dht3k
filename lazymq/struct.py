@@ -4,7 +4,8 @@ efficient """
 import asyncio
 import time
 
-from .const import Status, Config
+from .const      import Status, Config
+from .exceptions import ClosedException
 
 
 class _ContextManager(object):
@@ -21,6 +22,7 @@ class _ContextManager(object):
         with lock:
             <block>
     """
+    __slots__ = ('_conn',)
 
     def __init__(self, conn):
         self._conn = conn
@@ -43,6 +45,7 @@ class Connection(object):
         '_writer',
         '_lock',
         '_timestamp',
+        '_handler',
     )
 
     def __init__(
