@@ -20,6 +20,8 @@ class TestLazyMQ(object):
         """ Setup """
         self.mqa = lazymq.LazyMQ(port=4320)
         self.mqb = lazymq.LazyMQ(port=4321)
+        self.mqa.start()
+        self.mqb.start()
 
     def teardown(self):
         """ Teardown """

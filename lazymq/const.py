@@ -24,6 +24,8 @@ class Config(object):
     HASH_BITS  = HASH_BYTES * 8
     PROTOS     = Protocols.IPV4 | Protocols.IPV6
     BACKLOG    = 100
+    TIMEOUT    = 5
+    REUSE_TIME = 30
 
 
 config_dict = _consts_to_dict(Config)
