@@ -101,6 +101,8 @@ class LazyMQ(Protocol):
         self._servers.clear()
         self._socks.clear()
         self._connections.clear()
+        if not self.loop.is_running():
+            self.loop.run_until_complete(asyncio.sleep(0))
 
     @asyncio.coroutine
     def _do_open(self, port, address):
