@@ -13,7 +13,7 @@ Kademlia-like DHT
 
 .. image:: http://b.repl.ca/v1/coverage-100%25_required-brightgreen.png
 
-DHT with Python 3 based on Isaac Zafuta's
+DHT for Python 3 based on Isaac Zafuta's
 pydht: https://github.com/isaaczafuta/pydht
 
 NOT READY TO USE YET
