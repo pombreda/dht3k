@@ -16,6 +16,9 @@ Kademlia-like DHT
 DHT with Python 3 based on Isaac Zafuta's
 pydht: https://github.com/isaaczafuta/pydht
 
+NOT READY TO USE YET
+--------------------
+
 Basic Usage
 -----------
 
@@ -42,7 +45,7 @@ Features
 * Address discovery
 * NAT/Firewall detection
 * Well known bootstrap node
-* Optional async interface
+* Optional interface for threaded environments using concurrent.futures
 * Disk storage (memory storage optional)
 * IPv6 and IPv6/4 convergence
 * UPnP support
@@ -51,4 +54,4 @@ Features
   well connected peers. Also well connected nodes are returned first
 * Less latency and waiting than standard Kademlia
 * msgpack for wire protocol
-* ThreadPool based
+* asyncio based
