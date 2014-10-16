@@ -57,8 +57,6 @@ class Connection(object):
         self._lock      = asyncio.Lock()
         self._timestamp = time.time()
         self._writing   = asyncio.Event()
-        self._idle      = asyncio.Event()
-        self._idle.set()
 
     def refresh(self):
         """ Refresh the timestamp to prolong garbage collection """
@@ -93,14 +91,17 @@ class Connection(object):
 
     @property
     def writing(self):
-        """ Get the writing event """
+        """ Get the busy event """
         return self._writing
 
-    @property
-    def idle(self):
-        """ Get the idle event """
-        return self._idle
-
+    @asyncio.coroutine
+    def wait(self):
+        """ Wait for connection to become idle """
+        try:
+            result = (yield from self._lock.acquire())
+        finally:
+            self._lock.release()
+        return result
 
 class Message(object):
     """ Represents messages to send and received. The address_

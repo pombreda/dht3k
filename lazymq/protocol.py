@@ -2,6 +2,7 @@
 
 import asyncio
 import msgpack
+import ipaddress
 
 from .struct  import Message, Connection
 from .hashing import random_id
@@ -59,7 +60,7 @@ class Protocol(object):
             self._connections[peer] = conn
         while True:
             if conn.writing.is_set():
-                yield from conn.idle.wait()
+                yield from conn.wait()
                 continue
             readtask = asyncio.Task(reader.readexactly(1))
             done, pending = yield from asyncio.wait([
@@ -71,6 +72,7 @@ class Protocol(object):
             assert len(done) == 1 and len(pending) == 1
             done = list(done)[0]
             pending = list(pending)[0]
+            pending.cancel()
             if done is readtask:
                 if isinstance(done.exception(), asyncio.IncompleteReadError):
                     # Connection was closed
@@ -83,7 +85,29 @@ class Protocol(object):
                     except KeyError:
                         pass
                     return
-                #import ipdb; ipdb.set_trace()
+                with (yield from conn) as (reader, writer):
+                    enclen = int.from_bytes(done.result(), 'big')
+                    encb = yield from reader.readexactly(enclen)
+                    if enclen == 1 and not encb[0]:
+                        enc = None
+                    else:
+                        enc  = str(encb, encoding = "ASCII")
+                    msglenb = yield from reader.readexactly(8)
+                    msglen = int.from_bytes(msglenb, 'big')
+                    msgb = yield from reader.readexactly(msglen)
+                    msg = Message(
+                        *msgpack.loads(msgb, encoding=enc)
+                    )
+                    addr = ipaddress.ip_address(peer[0])
+                    if addr.version == 6:
+                        msg.address_v4 = None
+                        msg.address_v6 = peer[0]
+                    else:
+                        msg.address_v6 = None
+                        msg.address_v4 = peer[0]
+                    msg.port = peer[1]
+
+                import ipdb; ipdb.set_trace()
 
 
     @asyncio.coroutine
@@ -113,7 +137,6 @@ class Protocol(object):
         )
         with (yield from conn) as (reader, writer):
             conn.writing.set()
-            conn.idle.clear()
             writer.write(enclenb)
             writer.write(enc)
             writer.write(msglenb)
@@ -123,5 +146,4 @@ class Protocol(object):
                 Config.TIMEOUT,
             )
             conn.writing.clear()
-            conn.idle.set()
             # TODO: status as exception
