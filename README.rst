@@ -13,7 +13,7 @@ Kademlia-like DHT
 
 .. image:: http://b.repl.ca/v1/coverage-100%25_required-brightgreen.png
 
-DHT with Python 2/3 support and no heavy dependencies based on Isaac Zafuta's
+DHT with Python 3 based on Isaac Zafuta's
 pydht: https://github.com/isaaczafuta/pydht
 
 Basic Usage
@@ -31,13 +31,13 @@ Optional dependencies
 To improve performance and quality of the service install these modules:
 
 * miniupnpc
-* kyotocabinet
 
 
 Features
 --------
 
-* Python 2/3/pypy support
+* Python 3 support
+* TCP/SSL
 * Zero config mode
 * Address discovery
 * NAT/Firewall detection
