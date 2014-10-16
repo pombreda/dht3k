@@ -44,6 +44,7 @@ class Connection(object):
         '_lock',
         '_timestamp',
         '_writing',
+        '_idle',
     )
 
     def __init__(
@@ -56,6 +57,8 @@ class Connection(object):
         self._lock      = asyncio.Lock()
         self._timestamp = time.time()
         self._writing   = asyncio.Event()
+        self._idle      = asyncio.Event()
+        self._idle.set()
 
     def refresh(self):
         """ Refresh the timestamp to prolong garbage collection """
@@ -90,7 +93,13 @@ class Connection(object):
 
     @property
     def writing(self):
+        """ Get the writing event """
         return self._writing
+
+    @property
+    def idle(self):
+        """ Get the idle event """
+        return self._idle
 
 
 class Message(object):

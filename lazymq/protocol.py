@@ -3,8 +3,9 @@
 import asyncio
 import msgpack
 
-from .struct import Message, Connection
+from .struct  import Message, Connection
 from .hashing import random_id
+from .const   import Config
 
 class Protocol(object):
     """ Partial/abstract class for the lazymq protocol.
@@ -48,31 +49,41 @@ class Protocol(object):
         :type writer: asyncio.StreamWriter """
 
         peer = writer.get_extra_info('peername')
-        conn = Connection(reader, writer)
-        self._connections[peer] = conn
-        print("set", peer)
+        conn = None
+        try:
+            conn = self._connections[peer]
+        except KeyError:
+            pass
+        if not conn:
+            conn = Connection(reader, writer)
+            self._connections[peer] = conn
         while True:
+            if conn.writing.is_set():
+                yield from conn.idle.wait()
+                continue
+            readtask = asyncio.Task(reader.readexactly(1))
             done, pending = yield from asyncio.wait([
-                reader.readexactly(1),
+                readtask,
                 conn.writing.wait(),
             ], return_when=asyncio.FIRST_COMPLETED)
-            for pen in pending:
-                pen.cancel()
-            done = list(done)
-            if isinstance(done[0].exception(), asyncio.IncompleteReadError):
-                # Connection was closed
-                conn.close()
-                # TODO: here late closes can occour after we actually already
-                # cleaned up. I think it is ok to just ignore these. But lets
-                # think about it later again.
-                try:
-                    del self._connections[peer]
-                except KeyError:
-                    pass
-                print("del", peer)
-                return
-            import ipdb; ipdb.set_trace()
-
+            # If I understood the documentation this assertion must be True
+            # otherwise we have a bug
+            assert len(done) == 1 and len(pending) == 1
+            done = list(done)[0]
+            pending = list(pending)[0]
+            if done is readtask:
+                if isinstance(done.exception(), asyncio.IncompleteReadError):
+                    # Connection was closed
+                    conn.close()
+                    # TODO: here late closes can occour after we actually
+                    # already cleaned up. I think it is ok to just ignore
+                    # these. But lets think about it later again.
+                    try:
+                        del self._connections[peer]
+                    except KeyError:
+                        pass
+                    return
+                #import ipdb; ipdb.set_trace()
 
 
     @asyncio.coroutine
@@ -101,12 +112,16 @@ class Protocol(object):
             message.address_v4,
         )
         with (yield from conn) as (reader, writer):
+            conn.writing.set()
+            conn.idle.clear()
             writer.write(enclenb)
             writer.write(enc)
             writer.write(msglenb)
             writer.write(msg)
-            # status = yield from asyncio.wait_for(
-            #     reader.readexactly(1),
-            #     const.Config.TIMEOUT,
-            # )
+            status = yield from asyncio.wait_for(
+                reader.readexactly(1),
+                Config.TIMEOUT,
+            )
+            conn.writing.clear()
+            conn.idle.set()
             # TODO: status as exception

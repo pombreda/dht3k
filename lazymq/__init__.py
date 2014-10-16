@@ -113,7 +113,10 @@ class LazyMQ(Protocol):
             reader,
             writer
         )
-        self._connections[(address, port)] = conn
+        peer = writer.get_extra_info('peername')
+        # for consistency get the peername from the socket!
+        self._connections[peer] = conn
+        asyncio.async(self._handle_connection(reader, writer))
         return conn
 
     @asyncio.coroutine
