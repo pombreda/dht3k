@@ -36,6 +36,6 @@ class Status(object):
     HOST_NOT_REACHABLE   = 1
     CONNECTION_REFUSED   = 2
     TIMEOUT              = 3
-    MESSAGE_NOT_ACCEPTED = 4
+    BAD_MESSAGE          = 4
 
 status_dict = _consts_to_dict(Status)

@@ -6,7 +6,11 @@ import ipaddress
 
 from .struct  import Message, Connection
 from .hashing import random_id
-from .const   import Config
+from .const   import Config, Status
+from .log     import l
+
+class BadMessage(Exception):
+    pass
 
 class Protocol(object):
     """ Partial/abstract class for the lazymq protocol.
@@ -42,6 +46,18 @@ class Protocol(object):
         if not message.port:
             message.port = self.port
 
+    def _close_conn(self, conn, peer):
+        """ Close a connection """
+        conn.close()
+        # TODO: here late closes can occour after we actually
+        # already cleaned up. I think it is ok to just ignore
+        # these. But lets think about it later again.
+        try:
+            del self._connections[peer]
+        except KeyError:
+            pass
+        return
+
     @asyncio.coroutine
     def _handle_connection(self, reader, writer):
         """ Handles a connection
@@ -76,39 +92,64 @@ class Protocol(object):
             if done is readtask:
                 if isinstance(done.exception(), asyncio.IncompleteReadError):
                     # Connection was closed
-                    conn.close()
-                    # TODO: here late closes can occour after we actually
-                    # already cleaned up. I think it is ok to just ignore
-                    # these. But lets think about it later again.
-                    try:
-                        del self._connections[peer]
-                    except KeyError:
-                        pass
+                    self._close_conn(conn, peer)
                     return
                 with (yield from conn) as (reader, writer):
-                    enclen = int.from_bytes(done.result(), 'big')
-                    encb = yield from reader.readexactly(enclen)
-                    if enclen == 1 and not encb[0]:
-                        enc = None
-                    else:
-                        enc  = str(encb, encoding = "ASCII")
-                    msglenb = yield from reader.readexactly(8)
-                    msglen = int.from_bytes(msglenb, 'big')
-                    msgb = yield from reader.readexactly(msglen)
-                    msg = Message(
-                        *msgpack.loads(msgb, encoding=enc)
+                    try:
+                        enclen = int.from_bytes(done.result(), 'big')
+                        encb = yield from asyncio.wait_for(
+                            reader.readexactly(enclen),
+                            Config.TIMEOUT,
+                        )
+                        if enclen == 1 and not encb[0]:
+                            enc = None
+                        else:
+                            enc  = str(encb, encoding = "ASCII")
+                        msglenb = yield from asyncio.wait_for(
+                            reader.readexactly(8),
+                            Config.TIMEOUT,
+                        )
+                        msglen = int.from_bytes(msglenb, 'big')
+                        msgb = yield from asyncio.wait_for(
+                            reader.readexactly(msglen),
+                            Config.TIMEOUT,
+                        )
+                        msg = Message(
+                            *msgpack.loads(msgb, encoding=enc)
+                        )
+                        addr = ipaddress.ip_address(peer[0])
+                        if addr.version == 6:
+                            msg.address_v4 = None
+                            msg.address_v6 = peer[0]
+                        else:
+                            msg.address_v6 = None
+                            msg.address_v4 = peer[0]
+                        msg.port = peer[1]
+                    except asyncio.IncompleteReadError:
+                        # Connection was closed
+                        l.exception(
+                            "This should not happend with well behaved clients"
+                        )
+                        self._close_conn(conn, peer)
+                        return
+                    except asyncio.TimeoutError:
+                        # Either the message was bad or the peer froze
+                        # lets send a error and close the connection
+                        l.exception(
+                            "This should not happend with well behaved clients"
+                        )
+                        writer.write(
+                           Status.BAD_MESSAGE.to_bytes(1, 'big')
+                        )
+                        yield from asyncio.wait_for(
+                            writer.drain(),
+                            Config.TIMEOUT,
+                        )
+                        self._close_conn(conn, peer)
+                        return
+                    writer.write(
+                       Status.SUCCESS.to_bytes(1, 'big')
                     )
-                    addr = ipaddress.ip_address(peer[0])
-                    if addr.version == 6:
-                        msg.address_v4 = None
-                        msg.address_v6 = peer[0]
-                    else:
-                        msg.address_v6 = None
-                        msg.address_v4 = peer[0]
-                    msg.port = peer[1]
-
-                import ipdb; ipdb.set_trace()
-
 
     @asyncio.coroutine
     def deliver(self, message):
@@ -136,14 +177,23 @@ class Protocol(object):
             message.address_v4,
         )
         with (yield from conn) as (reader, writer):
-            conn.writing.set()
-            writer.write(enclenb)
-            writer.write(enc)
-            writer.write(msglenb)
-            writer.write(msg)
-            status = yield from asyncio.wait_for(
-                reader.readexactly(1),
-                Config.TIMEOUT,
-            )
-            conn.writing.clear()
+            try:
+                conn.writing.set()
+                writer.write(enclenb)
+                writer.write(enc)
+                writer.write(msglenb)
+                writer.write(msg)
+                status = int.from_bytes(
+                    (yield from asyncio.wait_for(
+                        reader.readexactly(1),
+                        Config.TIMEOUT,
+                    )),
+                    'big'
+                )
+                if status == Status.BAD_MESSAGE:
+                    raise BadMessage("Remote could not parse message")
+                elif status != Status.SUCCESS:
+                    raise Exception("Unknown error")
+            finally:
+                conn.writing.clear()
             # TODO: status as exception
