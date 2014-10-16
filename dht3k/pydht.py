@@ -19,6 +19,8 @@ from .          import threads
 from .log       import log_to_stderr, l
 
 
+# TODO: idea storage limit per peer
+# TODO: local peer id to storage (sqlite)
 # TODO: no republish (write docu why)
 # TODO: multi-value (per client GC)
 # TODO: get with value-limit

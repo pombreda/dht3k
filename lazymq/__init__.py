@@ -10,6 +10,9 @@ from .         import const
 from .struct   import Connection, Message
 from .protocol import Protocol
 
+
+# TODO: receive special key (id, value) id: id, connection
+# TODO: One retry with random sleep between 0.0 and 1.0 seconds
 # TODO: think about locking
 # TODO: test reuse
 # TODO: close connection after reporting/receiving BadStream

@@ -75,81 +75,62 @@ class Protocol(object):
             conn = Connection(reader, writer)
             self._connections[peer] = conn
         while True:
-            if conn.writing.is_set():
-                yield from conn.wait()
-                continue
-            readtask = asyncio.Task(reader.readexactly(1))
-            done, pending = yield from asyncio.wait([
-                readtask,
-                conn.writing.wait(),
-            ], return_when=asyncio.FIRST_COMPLETED)
-            # If I understood the documentation this assertion must be True
-            # otherwise we have a bug
-            assert len(done) == 1 and len(pending) == 1
-            done = list(done)[0]
-            pending = list(pending)[0]
-            pending.cancel()
-            if done is readtask:
-                if isinstance(done.exception(), asyncio.IncompleteReadError):
-                    # Connection was closed
-                    self._close_conn(conn, peer)
-                    return
-                with (yield from conn) as (reader, writer):
-                    try:
-                        enclen = int.from_bytes(done.result(), 'big')
-                        encb = yield from asyncio.wait_for(
-                            reader.readexactly(enclen),
-                            Config.TIMEOUT,
-                        )
-                        if enclen == 1 and not encb[0]:
-                            enc = None
-                        else:
-                            enc  = str(encb, encoding = "ASCII")
-                        msglenb = yield from asyncio.wait_for(
-                            reader.readexactly(8),
-                            Config.TIMEOUT,
-                        )
-                        msglen = int.from_bytes(msglenb, 'big')
-                        msgb = yield from asyncio.wait_for(
-                            reader.readexactly(msglen),
-                            Config.TIMEOUT,
-                        )
-                        msg = Message(
-                            *msgpack.loads(msgb, encoding=enc)
-                        )
-                        addr = ipaddress.ip_address(peer[0])
-                        if addr.version == 6:
-                            msg.address_v4 = None
-                            msg.address_v6 = peer[0]
-                        else:
-                            msg.address_v6 = None
-                            msg.address_v4 = peer[0]
-                        msg.port = peer[1]
-                    except asyncio.IncompleteReadError:
-                        # Connection was closed
-                        l.exception(
-                            "This should not happend with well behaved clients"
-                        )
-                        self._close_conn(conn, peer)
-                        return
-                    except asyncio.TimeoutError:
-                        # Either the message was bad or the peer froze
-                        # lets send a error and close the connection
-                        l.exception(
-                            "This should not happend with well behaved clients"
-                        )
-                        writer.write(
-                           Status.BAD_MESSAGE.to_bytes(1, 'big')
-                        )
-                        yield from asyncio.wait_for(
-                            writer.drain(),
-                            Config.TIMEOUT,
-                        )
-                        self._close_conn(conn, peer)
-                        return
-                    writer.write(
-                       Status.SUCCESS.to_bytes(1, 'big')
-                    )
+            try:
+                enclenb = yield from reader.readexactly(1)
+            except asyncio.IncompleteReadError:
+                # Before a message has started an incomplete read is ok:
+                # it just means the remote has garbage collected the conenction
+                self._close_conn(conn, peer)
+                return
+            try:
+                enclen  = int.from_bytes(enclenb, 'big')
+                encb    = yield from asyncio.wait_for(
+                    reader.readexactly(enclen),
+                    Config.TIMEOUT,
+                )
+                if enclen == 1 and not encb[0]:
+                    enc = None
+                else:
+                    enc  = str(encb, encoding = "ASCII")
+                msglenb  = yield from asyncio.wait_for(
+                    reader.readexactly(8),
+                    Config.TIMEOUT,
+                )
+                msglen   = int.from_bytes(msglenb, 'big')
+                msgb     = yield from asyncio.wait_for(
+                    reader.readexactly(msglen),
+                    Config.TIMEOUT,
+                )
+                msg = Message(
+                    *msgpack.loads(msgb, encoding=enc)
+                )
+                addr = ipaddress.ip_address(peer[0])
+                if addr.version == 6:
+                    msg.address_v4 = None
+                    msg.address_v6 = peer[0]
+                else:
+                    msg.address_v6 = None
+                    msg.address_v4 = peer[0]
+                msg.port = peer[1]
+            except asyncio.IncompleteReadError:
+                # Connection was closed
+                l.exception(
+                    "This should not happend with well behaved clients"
+                )
+                self._close_conn(conn, peer)
+                return
+            except asyncio.TimeoutError:
+                # Either the message was bad or the peer froze
+                # lets send a error and close the connection
+                l.exception(
+                    "This should not happend with well behaved clients"
+                )
+                # TODO: send answer (call_later)
+                self._close_conn(conn, peer)
+                return
+            writer.write(
+               Status.SUCCESS.to_bytes(1, 'big')
+            )
 
     @asyncio.coroutine
     def deliver(self, message):
@@ -176,24 +157,9 @@ class Protocol(object):
             message.address_v6,
             message.address_v4,
         )
-        with (yield from conn) as (reader, writer):
-            try:
-                conn.writing.set()
-                writer.write(enclenb)
-                writer.write(enc)
-                writer.write(msglenb)
-                writer.write(msg)
-                status = int.from_bytes(
-                    (yield from asyncio.wait_for(
-                        reader.readexactly(1),
-                        Config.TIMEOUT,
-                    )),
-                    'big'
-                )
-                if status == Status.BAD_MESSAGE:
-                    raise BadMessage("Remote could not parse message")
-                elif status != Status.SUCCESS:
-                    raise Exception("Unknown error")
-            finally:
-                conn.writing.clear()
-            # TODO: status as exception
+        with (yield from conn) as (_, writer):
+            writer.write(enclenb)
+            writer.write(enc)
+            writer.write(msglenb)
+            writer.write(msg)
+        # TODO: status as exception
