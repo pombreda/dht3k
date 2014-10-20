@@ -22,6 +22,8 @@ class Protocol(object):
         self.port         = None
         self._connections = None
         self.loop         = None
+        self._future      = None
+        self._received    = None
 
     @asyncio.coroutine
     def get_connection(
@@ -130,9 +132,13 @@ class Protocol(object):
                 # TODO: send answer (call_later)
                 self._close_conn(conn, peer)
                 return
-            writer.write(
-               Status.SUCCESS.to_bytes(1, 'big')
+            self._future.set_result(msg)
+            yield from asyncio.wait_for(
+                self._received.wait(),
+                timeout=Config.TIMEOUT,
             )
+            self._received.clear()
+            self._future = asyncio.Future(loop=self.loop)
 
     @asyncio.coroutine
     def deliver(self, message):

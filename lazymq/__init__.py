@@ -51,6 +51,9 @@ class LazyMQ(Protocol):
         self._servers      = []
         self._socks        = []
         self._connections  = {}
+        self._future       = asyncio.Future(loop=self.loop)
+        self._waiters      = 0
+        self._received     = asyncio.Event(loop=self.loop)
         if not self._loop:
             self._loop = asyncio.get_event_loop()
         # Detecting dual_stack sockets seems not to work on some OSs
@@ -169,7 +172,6 @@ class LazyMQ(Protocol):
 
     def start(self):
         """ Start everything """
-        loop = self.loop
         for server in self._servers:
             asyncio.async(server)
 
@@ -182,6 +184,14 @@ class LazyMQ(Protocol):
     def receive(self):
         """ Receive message.
 
-        This methid is a coroutine. """
-        pass
+        This method is a coroutine. """
+        self._waiters += 1
+        result = yield from asyncio.wait_for(
+            self._future,
+            timeout=3
+        )
+        self._waiters -= 1
+        if not self._waiters:
+            self._received.set()
+        return result
 

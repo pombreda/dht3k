@@ -36,10 +36,13 @@ class TestLazyMQ(object):
             """ Testrunner """
             msg = lazymq.Message(
                 data = b"hello",
-                address_v4 = b"127.0.0.1"
+                address_v4 = b"127.0.0.1",
+                port=4321
             )
             yield from self.mqa.deliver(msg)
-        self.mqa.loop.run_until_complete(run())
+        asyncio.async(run())
+        res = self.mqa.loop.run_until_complete(self.mqb.receive())
+        assert res.data == b"hello"
 
     def test_connection_refused(self):
         """ Test if we get connection refused """
