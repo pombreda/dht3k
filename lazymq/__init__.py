@@ -57,12 +57,11 @@ class LazyMQ(Protocol):
         self._received     = asyncio.Event(loop=self.loop)
         if not self._loop:
             self._loop = asyncio.get_event_loop()
-        # Detecting dual_stack sockets seems not to work on some OSs
-        # so we always use two sockets
         if ip_protocols & const.Protocols.IPV6:
             self._start_server(socket.AF_INET6, bind_v6)
         if ip_protocols & const.Protocols.IPV4:
             self._start_server(socket.AF_INET, bind_v4)
+        l.debug("LazyMQ set up")
 
     def _start_server(
             self,
@@ -70,6 +69,8 @@ class LazyMQ(Protocol):
             bind,
     ):
         """ Starts a server """
+        # Detecting dual_stack sockets seems not to work on some OSs
+        # so we always use two sockets
         sock = socket.socket(family)
         if family is socket.AF_INET6:
             sock.setsockopt(
@@ -90,14 +91,18 @@ class LazyMQ(Protocol):
             sock = sock,
             backlog = const.Config.BACKLOG,
         )
+        l.debug("Server created: %s", server)
         self._servers.append(server)
         self._socks.append(sock)
 
+    @asyncio.coroutine
     def close(self):
         """ Closing everything """
-        # TODO: needed or not?
-        # for server in self._servers:
-        #     server.close()
+        for server in self._servers:
+            server.close()
+            yield from server.wait_closed()
+            # Give active reads a chance to die
+            yield from asyncio.sleep(0.1)
         for sock in self._socks:
             sock.close()
         for conn in self._connections.values():
@@ -171,10 +176,13 @@ class LazyMQ(Protocol):
         :rtype: asyncio.AbstractEventLoop """
         return self._loop
 
+    @asyncio.coroutine
     def start(self):
         """ Start everything """
+        newservers = []
         for server in self._servers:
-            asyncio.async(server)
+            newservers.append((yield from server))
+        self._servers = newservers
 
 
     def send(self, message):

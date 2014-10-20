@@ -18,49 +18,50 @@ class TestLazyMQ(object):
 
     def setup(self):
         """ Setup """
+        asyncio.get_event_loop().set_debug(True)
         lazymq.log.log_to_stderr(True)
         self.mqa = lazymq.LazyMQ(port=4320)
         self.mqb = lazymq.LazyMQ(port=4321)
-        self.mqa.start()
-        self.mqb.start()
+        self.mqa.loop.run_until_complete(self.mqa.start())
+        self.mqb.loop.run_until_complete(self.mqb.start())
 
     def teardown(self):
         """ Teardown """
-        self.mqa.close()
-        self.mqb.close()
+        self.mqa.loop.run_until_complete(self.mqa.close())
+        self.mqb.loop.run_until_complete(self.mqb.close())
 
 
-    #def test_main(self):
-    #    """ Test sending and receiving one message """
-    #    @asyncio.coroutine
-    #    def run():
-    #        """ Testrunner """
-    #        yield from asyncio.sleep(0.1)
-    #        msg = lazymq.Message(
-    #            data = b"hello",
-    #            address_v4 = b"127.0.0.1",
-    #            port=4321
-    #        )
-    #        yield from self.mqa.deliver(msg)
-    #    asyncio.async(run())
-    #    res = self.mqa.loop.run_until_complete(self.mqb.receive())
-    #    assert res.data == b"hello"
+    def test_main(self):
+        """ Test sending and receiving one message """
+        @asyncio.coroutine
+        def run():
+            """ Testrunner """
+            yield from asyncio.sleep(0.1)
+            msg = lazymq.Message(
+                data = b"hello",
+                address_v4 = b"127.0.0.1",
+                port=4321
+            )
+            yield from self.mqa.deliver(msg)
+        asyncio.async(run())
+        res = self.mqa.loop.run_until_complete(self.mqb.receive())
+        assert res.data == b"hello"
 
-    #def test_second(self):
-    #    """ Test sending and receiving one message """
-    #    @asyncio.coroutine
-    #    def run():
-    #        """ Testrunner """
-    #        yield from asyncio.sleep(0.1)
-    #        msg = lazymq.Message(
-    #            data = b"hello",
-    #            address_v4 = b"127.0.0.1",
-    #            port=4321
-    #        )
-    #        yield from self.mqa.deliver(msg)
-    #    asyncio.async(run())
-    #    res = self.mqa.loop.run_until_complete(self.mqb.receive())
-    #    assert res.data == b"hello"
+    def test_second(self):
+        """ Test sending and receiving one message """
+        @asyncio.coroutine
+        def run():
+            """ Testrunner """
+            yield from asyncio.sleep(0.1)
+            msg = lazymq.Message(
+                data = b"hello",
+                address_v4 = b"127.0.0.1",
+                port=4321
+            )
+            yield from self.mqa.deliver(msg)
+        asyncio.async(run())
+        res = self.mqa.loop.run_until_complete(self.mqb.receive())
+        assert res.data == b"hello"
 
     def test_multi_receive(self):
         """ Test sending and receiving one message """
