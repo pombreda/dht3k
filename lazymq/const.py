@@ -33,9 +33,9 @@ config_dict = _consts_to_dict(Config)
 class Status(object):
     """ Message status """
     SUCCESS              = 0
-    HOST_NOT_REACHABLE   = 1
-    CONNECTION_REFUSED   = 2
-    TIMEOUT              = 3
-    BAD_MESSAGE          = 4
+    BAD_MESSAGE          = 1
+    # TODO: Implement ping
+    PING                 = 2
+    PONG                 = 3
 
 status_dict = _consts_to_dict(Status)

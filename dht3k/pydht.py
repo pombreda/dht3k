@@ -68,9 +68,8 @@ class DHT(object):
             log              = True,
             debug            = True,
     ):
-        if log and not DHT._log_enabled:
+        if log:
             log_to_stderr(debug)
-            DHT._log_enabled = True
         if not id_:
             id_ = random_id()
         if port < 1024:

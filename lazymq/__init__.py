@@ -9,6 +9,7 @@ import time
 from .         import const
 from .struct   import Connection, Message
 from .protocol import Protocol
+from .log      import l
 
 
 # TODO: receive special key (id, value) id: id, connection
@@ -181,17 +182,41 @@ class LazyMQ(Protocol):
         self._fill_defaults(message)
 
     @asyncio.coroutine
-    def receive(self):
+    def receive(
+            self,
+            status=const.Status.SUCCESS,
+            identity=None,
+            connection=None
+    ):
         """ Receive message.
 
         This method is a coroutine. """
-        self._waiters += 1
-        result = yield from asyncio.wait_for(
-            self._future,
-            timeout=3
-        )
-        self._waiters -= 1
-        if not self._waiters:
-            self._received.set()
-        return result
+        while True:
+            l.debug("Starting receiving")
+            self._waiters += 1
+            try:
+                result = yield from asyncio.wait_for(
+                    self._future,
+                    timeout=3
+                )
+                l.debug("Got a message")
+            finally:
+                self._waiters -= 1
+                if not self._waiters:
+                    self._received.set()
+            assert isinstance(result, Message)
+            returnit = True
+            if status is not None:
+                if result.status != status:
+                    returnit = False
+            if identity is not None:
+                if result.identity != identity:
+                    returnit = False
+            if connection is not None:
+                conn_v4 = (result.address_v4, result.port)
+                conn_v6 = (result.address_v6, result.port)
+                if connection != conn_v4 and connection != conn_v6:
+                    returnit = False
+            if returnit:
+                return result
 

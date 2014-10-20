@@ -3,6 +3,8 @@
 import asyncio
 import msgpack
 import ipaddress
+import traceback
+import random
 
 from .struct     import Message, Connection
 from .hashing    import random_id
@@ -69,13 +71,17 @@ class Protocol(object):
 
         peer = writer.get_extra_info('peername')
         conn = None
+        msg  = None
         try:
             conn = self._connections[peer]
         except KeyError:
             pass
         if not conn:
+            l.debug("Connction opened: %s", conn)
             conn = Connection(reader, writer)
             self._connections[peer] = conn
+        else:
+            l.debug("Handling existing conn: %s", conn)
         while True:
             try:
                 enclenb = yield from reader.readexactly(1)
@@ -84,9 +90,11 @@ class Protocol(object):
             ):
                 # Before a message has started an incomplete read is ok:
                 # it just means the remote has garbage collected the conenction
+                l.debug("Idle connection closed: %s", conn)
                 self._close_conn(conn, peer)
                 return
             try:
+                l.debug("Begin receiving: %s", conn)
                 enclen  = int.from_bytes(enclenb, 'big')
                 encb    = yield from asyncio.wait_for(
                     reader.readexactly(enclen),
@@ -129,7 +137,15 @@ class Protocol(object):
                 l.exception(
                     "This should not happend with well behaved clients"
                 )
-                # TODO: send answer (call_later)
+                self.send_error(peer, traceback.format_exc)
+                self._close_conn(conn, peer)
+                return
+            except msgpack.exceptions.ExtraData:
+                self.send_error(peer, traceback.format_exc)
+                self._close_conn(conn, peer)
+                return
+            except msgpack.UnpackException:
+                self.send_error(peer, traceback.format_exc)
                 self._close_conn(conn, peer)
                 return
             self._future.set_result(msg)
@@ -139,13 +155,45 @@ class Protocol(object):
             )
             self._received.clear()
             self._future = asyncio.Future(loop=self.loop)
+            l.debug("Receive completed: %s", conn)
+
+    def send_error(self, peer, exception):
+        """ Send error on exceptions """
+        msg = Message(
+            port = peer[1],
+            status = Status.BAD_MESSAGE,
+            # TODO: Is there a way to find out the encoding?
+            encoding = "UTF-8",
+            data = exception
+        )
+        addr = ipaddress.ip_address(peer[0])
+        if addr.version == 6:
+            msg.address_v4 = None
+            msg.address_v6 = peer[0]
+        else:
+            msg.address_v6 = None
+            msg.address_v4 = peer[0]
+        asyncio.async(self._devliver_error(msg))
 
     @asyncio.coroutine
-    def deliver(self, message):
+    def _devliver_error(self, msg):
+        """ Coroutine to deliver a error """
+        wait = (random.random() / 2) + 0.5
+        yield from asyncio.sleep(wait)
+        yield from self.deliver(msg, True)
+
+
+    @asyncio.coroutine
+    def deliver(self, message, is_error=False):
         """ Send message and wait for delivery.
 
         This method is a coroutine. """
         assert isinstance(message, Message)
+        l.debug("Sending message to: %s", (
+            message.address_v6,
+            message.address_v4,
+            message.port,
+        ))
         self._fill_defaults(message)
         msg = msgpack.dumps(
             message.to_tuple(),
@@ -165,9 +213,10 @@ class Protocol(object):
             message.address_v6,
             message.address_v4,
         )
+        l.debug("Got connection: %s", conn)
         with (yield from conn) as (_, writer):
             writer.write(enclenb)
             writer.write(enc)
             writer.write(msglenb)
             writer.write(msg)
-        # TODO: status as exception
+        l.debug("Wrote message to stream: %s", conn)

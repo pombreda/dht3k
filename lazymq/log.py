@@ -169,14 +169,19 @@ class LogFormatter(logging.Formatter):
             formatted = '\n'.join(lines)
         return formatted.replace("\n", "\n    ")
 
+_std_error_enabled = False
 
 def log_to_stderr(debug=False):
     """ Enable logging """
+    global _std_error_enabled
+    if _std_error_enabled:
+        return
     logger = logging.getLogger()
     if debug:
         logger.setLevel(logging.DEBUG)
     channel = logging.StreamHandler()
     channel.setFormatter(LogFormatter())
     logger.addHandler(channel)
+    _std_error_enabled = True
 
-l = logging.getLogger("dht3k")
+l = logging.getLogger("lazymq")

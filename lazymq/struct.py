@@ -58,6 +58,11 @@ class Connection(object):
         self._lock      = asyncio.Lock()
         self._timestamp = time.time()
 
+    def __repr__(self):
+        peer = self._writer.get_extra_info('peername')
+        sock = self._writer.get_extra_info('sockname')
+        return "%s -> %s" % (repr(sock), repr(peer))
+
     def refresh(self):
         """ Refresh the timestamp to prolong garbage collection """
         self._timestamp = time.time()
