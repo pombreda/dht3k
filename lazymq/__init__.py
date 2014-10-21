@@ -10,18 +10,10 @@ from .         import const
 from .struct   import Connection, Message
 from .protocol import Protocol
 from .log      import l
+from .crypt    import LinkEncryption
 
 
-# TODO: receive special key (id, value) id: id, connection
-# TODO: One retry with random sleep between 0.0 and 1.0 seconds
-# TODO: think about locking
 # TODO: test reuse
-# TODO: close connection after reporting/receiving BadStream
-# TODO: handle closing of connections (do a close connection method and refact)
-# TODO: return code + message and let deliver raise exceptions ie BadStream
-# TODO: receive check bad message and return bad message status
-# TODO: bad message can mean a read timeout catch this
-# TODO: read time in deliver: return bad peer status
 # TODO: add outofthebox SSL support
 # TODO: custom SSL cert
 # TODO: bandwidth limit
@@ -30,7 +22,7 @@ from .log      import l
 
 
 
-class LazyMQ(Protocol):
+class LazyMQ(Protocol, LinkEncryption):
     """ Sending and receiving message TCP without sockets. LazyMQ will handle
     connection for you. It will keep a connection for a while for reuse and
     then clean up the connection. """
@@ -57,6 +49,7 @@ class LazyMQ(Protocol):
         self._waiters      = 0
         self._received     = asyncio.Event(loop=self.loop)
         self._queue        = asyncio.Queue(loop=self.loop)
+        self.setup_tls()
         if not self._loop:
             self._loop = asyncio.get_event_loop()
         if ip_protocols & const.Protocols.IPV6:
@@ -96,9 +89,10 @@ class LazyMQ(Protocol):
         sock.listen(const.Config.BACKLOG)
         server = asyncio.start_server(
             self._handle_connection,
-            loop = self._loop,
-            sock = sock,
+            loop    = self._loop,
+            sock    = sock,
             backlog = const.Config.BACKLOG,
+            ssl     = self._ssl_context,
         )
         l.debug("Server created: %s", server)
         self._servers.append(server)
@@ -130,9 +124,11 @@ class LazyMQ(Protocol):
                 host = str(address),
                 port = port,
                 loop = self.loop,
+                ssl=self._ssl_context
             ),
             const.Config.TIMEOUT,
         )
+
         handler = self._handle_connection(reader, writer)
         asyncio.async(
             handler,

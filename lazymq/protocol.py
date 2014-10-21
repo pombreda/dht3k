@@ -177,6 +177,8 @@ class Protocol(object):
                 self.send_error(peer, traceback.format_exc)
                 self._close_conn(conn, peer)
                 return
+            # We received a valid message, this connection is alive -> refresh
+            conn.refresh()
             if msg.status == Status.PING:
                 msg.data = None
                 msg.status = Status.PONG

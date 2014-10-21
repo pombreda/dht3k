@@ -20,7 +20,7 @@ class TestLazyMQ(object):
 
     def setup(self):
         """ Setup """
-        asyncio.get_event_loop().set_debug(True)
+        #asyncio.get_event_loop().set_debug(True)
         lazymq.log.log_to_stderr(True)
         self.mqa = lazymq.LazyMQ(port=4320)
         self.mqb = lazymq.LazyMQ(port=4321)
