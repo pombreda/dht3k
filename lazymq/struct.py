@@ -3,6 +3,7 @@ efficient """
 
 import asyncio
 import time
+import ipaddress
 
 from .const      import Status, Config
 from .exceptions import ClosedException
@@ -101,8 +102,8 @@ class Message(object):
     receiving a message. """
     __slots__ = (
         # Modified by lazymq
-        'address_v6',
-        'address_v4',
+        '_address_v6',
+        '_address_v4',
         'status',
         # Passthrough
         'port',
@@ -123,22 +124,56 @@ class Message(object):
             # Take the port from LazyMQ
             port       = None,
     ):
-        self.identity   = identity
-        self.data       = data
-        self.encoding   = encoding
-        self.address_v6 = address_v6
-        self.address_v4 = address_v4
-        self.status     = status
-        self.port       = port
+        self.identity    = identity
+        self.data        = data
+        self.encoding    = encoding
+        self._address_v4 = None
+        self.address_v6  = address_v6
+        self._address_v6 = None
+        self.address_v4  = address_v4
+        self.status      = status
+        self.port        = port
+
+    @property
+    def address_v4(self):
+        """ Address getter """
+        return self._address_v4
+
+    @address_v4.setter
+    def address_v4(self, value):
+        """ Address setter: changes to internal representation """
+        if value is None:
+            self._address_v4 = None
+        else:
+            self._address_v4 = ipaddress.ip_address(value)
+
+    @property
+    def address_v6(self):
+        """ Address getter """
+        return self._address_v6
+
+    @address_v6.setter
+    def address_v6(self, value):
+        """ Address setter: changes to internal representation """
+        if value is None:
+            self._address_v6 = None
+        else:
+            self._address_v6 = ipaddress.ip_address(value)
 
     def to_tuple(self):
         """ Get the message as tuple to send to the network """
+        packed_v6 = None
+        packed_v4 = None
+        if self.address_v6 is not None:
+            packed_v6 = self.address_v6.packed
+        if self.address_v4 is not None:
+            packed_v4 = self.address_v4.packed
         return (
             self.identity,
             self.data,
             self.encoding,
-            self.address_v6,
-            self.address_v4,
+            packed_v6,
+            packed_v4,
             self.status,
             self.port,
         )

@@ -12,6 +12,8 @@ except ImportError:
 import lazymq
 import asyncio
 import pytest
+import ipaddress
+from lazymq.log import l
 
 class TestLazyMQ(object):
     """ Testing the bucketset """
@@ -36,10 +38,9 @@ class TestLazyMQ(object):
         @asyncio.coroutine
         def run():
             """ Testrunner """
-            yield from asyncio.sleep(0.1)
             msg = lazymq.Message(
                 data = b"hello",
-                address_v4 = b"127.0.0.1",
+                address_v4 = "127.0.0.1",
                 port=4321
             )
             yield from self.mqa.deliver(msg)
@@ -52,10 +53,9 @@ class TestLazyMQ(object):
         @asyncio.coroutine
         def run():
             """ Testrunner """
-            yield from asyncio.sleep(0.1)
             msg = lazymq.Message(
                 data = b"hello",
-                address_v4 = b"127.0.0.1",
+                address_v4 = "127.0.0.1",
                 port=4321
             )
             yield from self.mqa.deliver(msg)
@@ -63,28 +63,57 @@ class TestLazyMQ(object):
         res = self.mqa.loop.run_until_complete(self.mqb.receive())
         assert res.data == b"hello"
 
-    def test_multi_receive(self):
-        """ Test sending and receiving one message """
+    def test_simple_load_test(self):
+        """ Test load test using two senders one receiver """
+        msgs1 = set(range(500))
+        msgs2 = list(msgs1)
+        @asyncio.coroutine
+        def send(mq):
+            """ Testrunner """
+            l.debug("sending simple load test msgs")
+            while msgs2:
+                num = msgs2.pop()
+                l.debug("Sending message: %d", num)
+                msg = lazymq.Message()
+                msg.port = 4320
+                msg.address_v4 = "127.0.0.1"
+                msg.data = num
+                yield from mq.deliver(msg)
+
+        @asyncio.coroutine
+        def receive():
+            """ Testrunner """
+            yield from asyncio.sleep(0.1)
+            while msgs1:
+                msg = yield from self.mqa.receive()
+                l.debug("Receiving message: %d", msg.data)
+                try:
+                    msgs1.remove(msg.data)
+                except KeyError:
+                    pass
+        try:
+            self.mqc = lazymq.LazyMQ(port=4322)
+            self.mqc.loop.run_until_complete(self.mqc.start())
+            asyncio.async(send(self.mqb))
+            asyncio.async(send(self.mqc))
+            self.mqa.loop.run_until_complete(receive())
+        finally:
+            self.mqc.loop.run_until_complete(self.mqc.close())
+
+    def test_ping(self):
+        """ Test ping """
         @asyncio.coroutine
         def run():
             """ Testrunner """
-            yield from asyncio.sleep(1)
-            print("do")
             msg = lazymq.Message(
-                data = b"hello",
-                address_v4 = b"127.0.0.1",
+                status = lazymq.const.Status.PING,
+                address_v4 = "127.0.0.1",
                 port=4321
             )
-            yield from self.mqa.deliver(msg)
-        asyncio.async(run())
-        done, _ = self.mqa.loop.run_until_complete(
-            asyncio.wait([
-                self.mqb.receive(),
-                self.mqb.receive(),
-            ])
-        )
-        for msg in done:
-            assert msg.result().data == b"hello"
+            return (yield from self.mqa.communicate(msg))
+        res = self.mqa.loop.run_until_complete(run())
+        assert isinstance(res, lazymq.Message)
+        assert res.status == lazymq.const.Status.PONG
 
     def test_connection_refused(self):
         """ Test if we get connection refused """
@@ -93,7 +122,7 @@ class TestLazyMQ(object):
             """ Testrunner """
             return (yield from self.mqa.get_connection(
                 port = 12412,
-                address_v4 = "127.0.0.1"
+                address_v4 = ipaddress.ip_address("127.0.0.1")
             ))
         with pytest.raises(OSError):
             self.mqa.loop.run_until_complete(run())
@@ -105,6 +134,6 @@ class TestLazyMQ(object):
             """ Testrunner """
             return (yield from self.mqa.get_connection(
                 port = 4321,
-                address_v4 = "127.0.0.1"
+                address_v4 = ipaddress.ip_address("127.0.0.1")
             ))
         self.mqa.loop.run_until_complete(run())

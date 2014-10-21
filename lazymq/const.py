@@ -34,7 +34,6 @@ class Status(object):
     """ Message status """
     SUCCESS              = 0
     BAD_MESSAGE          = 1
-    # TODO: Implement ping
     PING                 = 2
     PONG                 = 3
 

@@ -1,4 +1,4 @@
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,star-args
 
 """ Lazymq is UDP-semantic over TCP """
 
@@ -53,8 +53,10 @@ class LazyMQ(Protocol):
         self._socks        = []
         self._connections  = {}
         self._future       = asyncio.Future(loop=self.loop)
+        self._future_lock  = asyncio.Lock(loop=self.loop)
         self._waiters      = 0
         self._received     = asyncio.Event(loop=self.loop)
+        self._queue        = asyncio.Queue(loop=self.loop)
         if not self._loop:
             self._loop = asyncio.get_event_loop()
         if ip_protocols & const.Protocols.IPV6:
@@ -62,6 +64,13 @@ class LazyMQ(Protocol):
         if ip_protocols & const.Protocols.IPV4:
             self._start_server(socket.AF_INET, bind_v4)
         l.debug("LazyMQ set up")
+
+    @property
+    def queue(self):
+        """ Return the queue.
+
+        :rtype: asyncio.Queue """
+        return self._queue
 
     def _start_server(
             self,
@@ -118,7 +127,7 @@ class LazyMQ(Protocol):
         """ Open a connection with a defined timeout """
         reader, writer = yield from asyncio.wait_for(
             asyncio.open_connection(
-                host = address,
+                host = str(address),
                 port = port,
                 loop = self.loop,
             ),
@@ -134,6 +143,7 @@ class LazyMQ(Protocol):
             writer,
         )
         peer = writer.get_extra_info('peername')
+        peer = self._make_connection_key(*peer)
         # for consistency get the peername from the socket!
         self._connections[peer] = conn
         return conn
@@ -149,14 +159,15 @@ class LazyMQ(Protocol):
         ipv6-address, you can leave one address None, but its not
         recommended. """
         assert address_v4 or address_v6
+        port = int(port)
         try:
             if address_v6:
-                return self._connections[(address_v6, port)]
+                return self._connections[(address_v6.packed, port)]
         except KeyError:
             pass
         try:
             if address_v4:
-                return self._connections[(address_v4, port)]
+                return self._connections[(address_v4.packed, port)]
         except KeyError:
             pass
         try:
@@ -190,41 +201,37 @@ class LazyMQ(Protocol):
         self._fill_defaults(message)
 
     @asyncio.coroutine
-    def receive(
+    def receive(self):
+        """ Receive a message from the queue """
+        return (yield from self._queue.get())
+
+    @asyncio.coroutine
+    def communicate(
             self,
-            status=const.Status.SUCCESS,
-            identity=None,
-            connection=None
+            message,
+            timeout=const.Config.TIMEOUT,
     ):
-        """ Receive message.
+        """ Deliver a message and wait for an answer. The identity of the
+        answer has to be same as the request. IMPORTANT: The message will still
+        be delivered to the queue, so please consume the message.
 
         This method is a coroutine. """
+        self._waiters += 1
+        # l.debug("Starting to communicate")
+        yield from self.deliver(message)
         while True:
-            l.debug("Starting receiving")
-            self._waiters += 1
             try:
                 result = yield from asyncio.wait_for(
                     self._future,
-                    timeout=3
+                    timeout=timeout
                 )
-                l.debug("Got a message")
+                # l.debug("Got a message")
+                if result.identity == message.identity:
+                    return result
             finally:
                 self._waiters -= 1
                 if not self._waiters:
+                    self._future = asyncio.Future(loop=self.loop)
                     self._received.set()
-            assert isinstance(result, Message)
-            returnit = True
-            if status is not None:
-                if result.status != status:
-                    returnit = False
-            if identity is not None:
-                if result.identity != identity:
-                    returnit = False
-            if connection is not None:
-                conn_v4 = (result.address_v4, result.port)
-                conn_v6 = (result.address_v6, result.port)
-                if connection != conn_v4 and connection != conn_v6:
-                    returnit = False
-            if returnit:
-                return result
+            self._waiters += 1
 

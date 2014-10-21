@@ -18,14 +18,42 @@ class Protocol(object):
 
     Needs to be inherited by LazyMQ. """
 
-    def __init__(self):
-        """ Init to make lint happy """
-        self.encoding     = None
-        self.port         = None
-        self._connections = None
-        self.loop         = None
-        self._future      = None
-        self._received    = None
+    def __init__(
+            self,
+            encoding,
+            port,
+            _connections,
+            _loop,
+            _future,
+            _received,
+            _future_lock,
+            _waiters,
+            _queue,
+    ):
+        """ Init to make lint happy. Never call this!
+        Yes, I know this bullshit, but what can you do?
+
+        :type encoding: str
+        :type port: int
+        :type _connections: dict
+        :type _loop: asyncio.AbstractEventLoop
+        :type _future: asyncio.Future
+        :type _received: asyncio.Event
+        :type _future_lock: asyncio.Lock
+        :type _waiters: int
+        :type _queue: asyncio.Queue
+        """
+        if True:
+            return
+        self.encoding     = encoding
+        self.port         = port
+        self._connections = _connections
+        self._loop        = _loop
+        self._future      = _future
+        self._received    = _received
+        self._future_lock = _future_lock
+        self._waiters     = _waiters
+        self._queue       = _queue
 
     @asyncio.coroutine
     def get_connection(
@@ -70,6 +98,7 @@ class Protocol(object):
         :type writer: asyncio.StreamWriter """
 
         peer = writer.get_extra_info('peername')
+        peer = self._make_connection_key(*peer)
         conn = None
         msg  = None
         try:
@@ -94,7 +123,7 @@ class Protocol(object):
                 self._close_conn(conn, peer)
                 return
             try:
-                l.debug("Begin receiving: %s", conn)
+                # l.debug("Begin receiving: %s", conn)
                 enclen  = int.from_bytes(enclenb, 'big')
                 encb    = yield from asyncio.wait_for(
                     reader.readexactly(enclen),
@@ -148,14 +177,32 @@ class Protocol(object):
                 self.send_error(peer, traceback.format_exc)
                 self._close_conn(conn, peer)
                 return
-            self._future.set_result(msg)
-            yield from asyncio.wait_for(
-                self._received.wait(),
-                timeout=Config.TIMEOUT,
-            )
-            self._received.clear()
-            self._future = asyncio.Future(loop=self.loop)
-            l.debug("Receive completed: %s", conn)
+            if msg.status == Status.PING:
+                msg.data = None
+                msg.status = Status.PONG
+                yield from self.deliver(msg)
+            else:
+                self._queue.put_nowait(msg)
+                if self._waiters:
+                    with (yield from self._future_lock):
+                        self._future.set_result(msg)
+                        yield from asyncio.wait_for(
+                            self._received.wait(),
+                            timeout=Config.TIMEOUT,
+                        )
+                        self._received.clear()
+                        self._future = asyncio.Future(loop=self._loop)
+
+
+            # l.debug("Receive completed: %s", conn)
+
+    def _make_connection_key(self, address, port):
+        """ Create memory efficiant and unique representation of the remote
+        host and port """
+        return (
+            ipaddress.ip_address(address).packed,
+            int(port),
+        )
 
     def send_error(self, peer, exception):
         """ Send error on exceptions """
