@@ -20,7 +20,7 @@ class TestLazyMQ(object):
 
     def setup(self):
         """ Setup """
-        #asyncio.get_event_loop().set_debug(True)
+        asyncio.get_event_loop().set_debug(True)
         lazymq.log.log_to_stderr(True)
         self.mqa = lazymq.LazyMQ(port=4320)
         self.mqb = lazymq.LazyMQ(port=4321)
@@ -76,7 +76,7 @@ class TestLazyMQ(object):
                 l.debug("Sending message: %d", num)
                 msg = lazymq.Message()
                 msg.port = 4320
-                msg.address_v4 = "127.0.0.1"
+                msg.address_v6 = "::1"
                 msg.data = num
                 yield from mq.deliver(msg)
 

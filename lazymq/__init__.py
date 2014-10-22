@@ -1,4 +1,4 @@
-# pylint: disable=too-many-arguments,star-args
+# pylint: disable=too-many-arguments
 
 """ Lazymq is UDP-semantic over TCP """
 
@@ -13,12 +13,16 @@ from .log      import l
 from .crypt    import LinkEncryption
 
 
+# TODO: connection cleanup
+# TODO: what if one only sends through connection? (no refresh)
+# TODO: close during send is not good
+#   -> probably refresh on begin of operation (send/recv
 # TODO: test reuse
-# TODO: add outofthebox SSL support
 # TODO: custom SSL cert
 # TODO: bandwidth limit
 # TODO: does call_soon log exceptions?
 # TODO: LazyMQ attrs to ready-only props
+# TODO: documentation, more tests, refactoring, review
 
 
 
@@ -139,7 +143,7 @@ class LazyMQ(Protocol, LinkEncryption):
             writer,
         )
         peer = writer.get_extra_info('peername')
-        peer = self._make_connection_key(*peer)
+        peer = self._make_connection_key(peer[0], peer[1])
         # for consistency get the peername from the socket!
         self._connections[peer] = conn
         return conn

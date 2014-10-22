@@ -98,7 +98,7 @@ class Protocol(object):
         :type writer: asyncio.StreamWriter """
 
         peer = writer.get_extra_info('peername')
-        peer = self._make_connection_key(*peer)
+        peer = self._make_connection_key(peer[0], peer[1])
         conn = None
         msg  = None
         try:

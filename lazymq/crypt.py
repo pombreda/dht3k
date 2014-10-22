@@ -41,7 +41,7 @@ class LinkEncryption(object):
         # We only talk to lazymq, so we can use the best protocol
         context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+        context.verify_mode = ssl.CERT_REQUIRED
         folder = __file__.split(os.path.sep)[:-1]
         folder.append("cert.pem")
         path = "%s%s" % (
@@ -49,13 +49,7 @@ class LinkEncryption(object):
             os.path.join(*folder)
         )
         context.load_cert_chain(path)
+        context.load_verify_locations(path)
         context.set_ciphers(self.ciphers())
         
         self._ssl_context = context
-
-    def wrap_socket(self, sock, server_side=False):
-        """ Wrap a socket """
-        return self._ssl_context.wrap_socket(
-            sock,
-            server_side=server_side,
-        )
