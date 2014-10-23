@@ -63,6 +63,30 @@ class TestLazyMQ(object):
         res = self.mqa.loop.run_until_complete(self.mqb.receive())
         assert res.data == b"hello"
 
+    def test_fuzz(self):
+        """ Test sending and receiving one message """
+        @asyncio.coroutine
+        def run():
+            """ Testrunner """
+            conn = (yield from self.mqa.get_connection(
+                port = 4321,
+                address_v4 = ipaddress.ip_address("127.0.0.1")
+            ))
+            assert isinstance(conn, lazymq.struct.Connection)
+            with (yield from conn) as (_, writer):
+                writer.write(lazymq.hashing.random_id())
+            conn.close()
+            self.mqa._connections.clear()
+            msg = lazymq.Message(
+                data = b"hello",
+                address_v4 = "127.0.0.1",
+                port=4321
+            )
+            yield from self.mqa.deliver(msg)
+        asyncio.async(run())
+        res = self.mqa.loop.run_until_complete(self.mqb.receive())
+        assert res.data == b"hello"
+
     def test_simple_load_test(self):
         """ Test load test using two senders one receiver """
         msgs1 = set(range(500))

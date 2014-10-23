@@ -133,14 +133,14 @@ class LazyMQ(Protocol, LinkEncryption):
             const.Config.TIMEOUT,
         )
 
-        handler = self._handle_connection(reader, writer)
-        asyncio.async(
-            handler,
-            loop = self.loop,
-        )
         conn = Connection(
             reader,
             writer,
+        )
+        handler = self._handle_connection(reader, writer, conn)
+        asyncio.async(
+            handler,
+            loop = self.loop,
         )
         peer = writer.get_extra_info('peername')
         peer = self._make_connection_key(peer[0], peer[1])

@@ -91,26 +91,35 @@ class Protocol(object):
         return
 
     @asyncio.coroutine
-    def _handle_connection(self, reader, writer):
+    def _handle_connection(self, reader, writer, conn=None):
         """ Handles a connection
 
         :type reader: asyncio.StreamReader
         :type writer: asyncio.StreamWriter """
 
+        # Handshake, send local port so remote can connect us
+        writer.write(self.port.to_bytes(2, 'big'))
         peer = writer.get_extra_info('peername')
-        peer = self._make_connection_key(peer[0], peer[1])
-        conn = None
-        msg  = None
         try:
-            conn = self._connections[peer]
-        except KeyError:
-            pass
+            port = int.from_bytes((yield from asyncio.wait_for(
+                reader.readexactly(2),
+                Config.TIMEOUT,
+            )), 'big')
+        except (
+                asyncio.IncompleteReadError,
+        ):
+            l.debug("Connection closed before handshake: %s", peer)
+            writer.close()
+            return
+        peer = self._make_connection_key(peer[0], port)
+        msg  = None
         if not conn:
-            l.debug("Connction opened: %s", conn)
             conn = Connection(reader, writer)
+            l.debug("Connction opened: %s", conn)
             self._connections[peer] = conn
         else:
             l.debug("Handling existing conn: %s", conn)
+        conn.handshake_event.set()
         while True:
             try:
                 enclenb = yield from reader.readexactly(1)
@@ -152,7 +161,7 @@ class Protocol(object):
                 else:
                     msg.address_v6 = None
                     msg.address_v4 = peer[0]
-                msg.port = peer[1]
+                msg.port = port
             except asyncio.IncompleteReadError:
                 # Connection was closed
                 l.exception(
@@ -166,15 +175,15 @@ class Protocol(object):
                 l.exception(
                     "This should not happend with well behaved clients"
                 )
-                self.send_error(peer, traceback.format_exc)
+                self.send_error(peer, traceback.format_exc())
                 self._close_conn(conn, peer)
                 return
             except msgpack.exceptions.ExtraData:
-                self.send_error(peer, traceback.format_exc)
+                self.send_error(peer, traceback.format_exc())
                 self._close_conn(conn, peer)
                 return
             except msgpack.UnpackException:
-                self.send_error(peer, traceback.format_exc)
+                self.send_error(peer, traceback.format_exc())
                 self._close_conn(conn, peer)
                 return
             # We received a valid message, this connection is alive -> refresh
@@ -259,9 +268,11 @@ class Protocol(object):
         msglenb     = msglen.to_bytes(8, 'big')
         conn = yield from self.get_connection(
             message.port,
-            message.address_v6,
-            message.address_v4,
+            message.address_v6_ipaddress(),
+            message.address_v4_ipaddress(),
         )
+        if not conn.handshake_event.is_set():
+            (yield from conn.handshake_event.wait())
         l.debug("Got connection: %s", conn)
         with (yield from conn) as (_, writer):
             writer.write(enclenb)

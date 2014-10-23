@@ -47,6 +47,7 @@ class Connection(object):
         '_lock',
         '_timestamp',
         '_handler',
+        'handshake_event',
     )
 
     def __init__(
@@ -58,6 +59,7 @@ class Connection(object):
         self._writer    = writer
         self._lock      = asyncio.Lock()
         self._timestamp = time.time()
+        self.handshake_event = asyncio.Event()
 
     def __repr__(self):
         peer = self._writer.get_extra_info('peername')
@@ -102,8 +104,8 @@ class Message(object):
     receiving a message. """
     __slots__ = (
         # Modified by lazymq
-        '_address_v6',
-        '_address_v4',
+        'address_v6',
+        'address_v4',
         'status',
         # Passthrough
         'port',
@@ -127,53 +129,50 @@ class Message(object):
         self.identity    = identity
         self.data        = data
         self.encoding    = encoding
-        self._address_v4 = None
         self.address_v6  = address_v6
-        self._address_v6 = None
         self.address_v4  = address_v4
         self.status      = status
         self.port        = port
 
-    @property
-    def address_v4(self):
-        """ Address getter """
-        return self._address_v4
 
-    @address_v4.setter
-    def address_v4(self, value):
-        """ Address setter: changes to internal representation """
-        if value is None:
-            self._address_v4 = None
+    def address_v4_packed(self):
+        """ Get packed address """
+        if self.address_v4 is None:
+            return None
         else:
-            self._address_v4 = ipaddress.ip_address(value)
+            return ipaddress.ip_address(self.address_v4).packed
 
-    @property
-    def address_v6(self):
-        """ Address getter """
-        return self._address_v6
 
-    @address_v6.setter
-    def address_v6(self, value):
-        """ Address setter: changes to internal representation """
-        if value is None:
-            self._address_v6 = None
+    def address_v6_packed(self):
+        """ Get packed address """
+        if self.address_v6 is None:
+            return None
         else:
-            self._address_v6 = ipaddress.ip_address(value)
+            return ipaddress.ip_address(self.address_v6).packed
+
+    def address_v4_ipaddress(self):
+        """ Get packed address """
+        if self.address_v4 is None:
+            return None
+        else:
+            return ipaddress.ip_address(self.address_v4)
+
+
+    def address_v6_ipaddress(self):
+        """ Get packed address """
+        if self.address_v6 is None:
+            return None
+        else:
+            return ipaddress.ip_address(self.address_v6)
 
     def to_tuple(self):
         """ Get the message as tuple to send to the network """
-        packed_v6 = None
-        packed_v4 = None
-        if self.address_v6 is not None:
-            packed_v6 = self.address_v6.packed
-        if self.address_v4 is not None:
-            packed_v4 = self.address_v4.packed
         return (
             self.identity,
             self.data,
             self.encoding,
-            packed_v6,
-            packed_v4,
+            self.address_v6_packed(),
+            self.address_v4_packed(),
             self.status,
             self.port,
         )
