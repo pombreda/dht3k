@@ -4,7 +4,7 @@ import ssl
 import os.path
 
 class LinkEncryption(object):
-    """ Partial/abstract class for the lazymq protocol.
+    """ Partial/abstract class for the lazymq encryption.
 
     Needs to be inherited by LazyMQ. """
 

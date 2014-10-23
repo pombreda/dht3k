@@ -11,6 +11,7 @@ from .struct   import Connection, Message
 from .protocol import Protocol
 from .log      import l
 from .crypt    import LinkEncryption
+from .tasks    import Cleanup
 
 
 # TODO: connection cleanup
@@ -26,7 +27,7 @@ from .crypt    import LinkEncryption
 
 
 
-class LazyMQ(Protocol, LinkEncryption):
+class LazyMQ(Protocol, LinkEncryption, Cleanup):
     """ Sending and receiving message TCP without sockets. LazyMQ will handle
     connection for you. It will keep a connection for a while for reuse and
     then clean up the connection. """
@@ -53,6 +54,7 @@ class LazyMQ(Protocol, LinkEncryption):
         self._waiters      = 0
         self._received     = asyncio.Event(loop=self.loop)
         self._queue        = asyncio.Queue(loop=self.loop)
+        self._closed       = asyncio.Event(loop=self.loop)
         self.setup_tls()
         if not self._loop:
             self._loop = asyncio.get_event_loop()
@@ -60,6 +62,10 @@ class LazyMQ(Protocol, LinkEncryption):
             self._start_server(socket.AF_INET6, bind_v6)
         if ip_protocols & const.Protocols.IPV4:
             self._start_server(socket.AF_INET, bind_v4)
+        asyncio.async(
+            self.run_cleanup(),
+            loop=self._loop,
+        )
         l.debug("LazyMQ set up")
 
     @property
@@ -105,6 +111,7 @@ class LazyMQ(Protocol, LinkEncryption):
     @asyncio.coroutine
     def close(self):
         """ Closing everything """
+        self._closed.set()
         for server in self._servers:
             server.close()
             yield from server.wait_closed()
@@ -152,14 +159,27 @@ class LazyMQ(Protocol, LinkEncryption):
     def get_connection(
             self,
             port,
-            address_v6 = None,
-            address_v4 = None,
+            active_port = None,
+            address_v6  = None,
+            address_v4  = None,
     ):
         """ Get an active connection to a host. Please provide a ipv4- and
         ipv6-address, you can leave one address None, but its not
         recommended. """
         assert address_v4 or address_v6
         port = int(port)
+        if active_port:
+            active_port = int(active_port)
+            try:
+                if address_v6:
+                    return self._connections[(address_v6.packed, active_port)]
+            except KeyError:
+                pass
+            try:
+                if address_v4:
+                    return self._connections[(address_v4.packed, active_port)]
+            except KeyError:
+                pass
         try:
             if address_v6:
                 return self._connections[(address_v6.packed, port)]
@@ -223,7 +243,8 @@ class LazyMQ(Protocol, LinkEncryption):
             try:
                 result = yield from asyncio.wait_for(
                     self._future,
-                    timeout=timeout
+                    timeout=timeout,
+                    loop=self._loop,
                 )
                 # l.debug("Got a message")
                 if result.identity == message.identity:

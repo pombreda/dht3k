@@ -10,7 +10,7 @@ from .struct     import Message, Connection
 from .hashing    import random_id
 from .const      import Config, Status
 from .log        import l
-from .exceptions import BadMessage, ClosedException
+from .exceptions import BadMessage
 
 
 class Protocol(object):
@@ -59,8 +59,9 @@ class Protocol(object):
     def get_connection(
             self,
             port,
-            address_v6 = None,
-            address_v4 = None,
+            active_port = None,
+            address_v6  = None,
+            address_v4  = None,
     ):
         """ Abstract method. Get an active connection to a host. Please provide
         a ipv4- and ipv6-address, you can leave one address None, but its not
@@ -104,6 +105,7 @@ class Protocol(object):
             port = int.from_bytes((yield from asyncio.wait_for(
                 reader.readexactly(2),
                 Config.TIMEOUT,
+                loop=self._loop,
             )), 'big')
         except (
                 asyncio.IncompleteReadError,
@@ -111,7 +113,7 @@ class Protocol(object):
             l.debug("Connection closed before handshake: %s", peer)
             writer.close()
             return
-        peer = self._make_connection_key(peer[0], port)
+        peer = self._make_connection_key(peer[0], int(peer[1]))
         msg  = None
         if not conn:
             conn = Connection(reader, writer)
@@ -133,10 +135,14 @@ class Protocol(object):
                 return
             try:
                 # l.debug("Begin receiving: %s", conn)
+                # Now we have 30 seconds to receive but timeout 5s so
+                # no problem there
+                conn.refresh()
                 enclen  = int.from_bytes(enclenb, 'big')
                 encb    = yield from asyncio.wait_for(
                     reader.readexactly(enclen),
                     Config.TIMEOUT,
+                    loop=self._loop,
                 )
                 if enclen == 1 and not encb[0]:
                     enc = None
@@ -145,11 +151,13 @@ class Protocol(object):
                 msglenb  = yield from asyncio.wait_for(
                     reader.readexactly(8),
                     Config.TIMEOUT,
+                    loop=self._loop,
                 )
                 msglen   = int.from_bytes(msglenb, 'big')
                 msgb     = yield from asyncio.wait_for(
                     reader.readexactly(msglen),
                     Config.TIMEOUT,
+                    loop=self._loop,
                 )
                 msg = Message(
                     *msgpack.loads(msgb, encoding=enc)
@@ -162,6 +170,7 @@ class Protocol(object):
                     msg.address_v6 = None
                     msg.address_v4 = peer[0]
                 msg.port = port
+                msg.active_port = peer[1]
             except asyncio.IncompleteReadError:
                 # Connection was closed
                 l.exception(
@@ -186,8 +195,6 @@ class Protocol(object):
                 self.send_error(peer, traceback.format_exc())
                 self._close_conn(conn, peer)
                 return
-            # We received a valid message, this connection is alive -> refresh
-            conn.refresh()
             if msg.status == Status.PING:
                 msg.data = None
                 msg.status = Status.PONG
@@ -200,6 +207,7 @@ class Protocol(object):
                         yield from asyncio.wait_for(
                             self._received.wait(),
                             timeout=Config.TIMEOUT,
+                            loop=self._loop,
                         )
                         self._received.clear()
                         self._future = asyncio.Future(loop=self._loop)
@@ -231,7 +239,10 @@ class Protocol(object):
         else:
             msg.address_v6 = None
             msg.address_v4 = peer[0]
-        asyncio.async(self._devliver_error(msg))
+        asyncio.async(
+            self._devliver_error(msg),
+            loop=self._loop,
+        )
 
     @asyncio.coroutine
     def _devliver_error(self, msg):
@@ -268,6 +279,7 @@ class Protocol(object):
         msglenb     = msglen.to_bytes(8, 'big')
         conn = yield from self.get_connection(
             message.port,
+            message.active_port,
             message.address_v6_ipaddress(),
             message.address_v4_ipaddress(),
         )
@@ -275,6 +287,7 @@ class Protocol(object):
             (yield from conn.handshake_event.wait())
         l.debug("Got connection: %s", conn)
         with (yield from conn) as (_, writer):
+            conn.refresh()
             writer.write(enclenb)
             writer.write(enc)
             writer.write(msglenb)

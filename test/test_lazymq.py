@@ -89,7 +89,7 @@ class TestLazyMQ(object):
 
     def test_simple_load_test(self):
         """ Test load test using two senders one receiver """
-        msgs1 = set(range(500))
+        msgs1 = set(range(100))
         msgs2 = list(msgs1)
         @asyncio.coroutine
         def send(mq):

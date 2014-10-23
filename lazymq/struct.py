@@ -6,7 +6,6 @@ import time
 import ipaddress
 
 from .const      import Status, Config
-from .exceptions import ClosedException
 
 
 class _ContextManager(object):
@@ -112,6 +111,8 @@ class Message(object):
         'encoding',
         'identity',
         'data',
+        # Private
+        'active_port',
     )
 
     def __init__(
@@ -133,6 +134,7 @@ class Message(object):
         self.address_v4  = address_v4
         self.status      = status
         self.port        = port
+        self.active_port = None
 
 
     def address_v4_packed(self):
