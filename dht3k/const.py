@@ -15,7 +15,7 @@ class Config(object):
     """ Config constants """
     K              = 20
     ALPHA          = 3
-    FW_PENALTY     = 2 ** (ID_BITS + 1)
+    FW_PENALTY     = 2 ** (lazyconst.Config.HASH_BITS + 1)
     SLEEP_WAIT     = 1
     ID_BYTES       = lazyconst.Config.HASH_BYTES
     ID_BITS        = lazyconst.Config.HASH_BITS
@@ -35,9 +35,6 @@ config_dict = _consts_to_dict(Config)
 
 class MinMax(object):
     """ Maximima and minima """
-    MAX_MSG_SIZE   = 1420   # Tunnels - UPD6 Header
-                            # this should never cause
-                            # fragmentation
     MAX_IP_LEN     = 16
     MIN_IP_LEN     = 4
     PEER_TUPLE_LEN = 4
@@ -58,13 +55,9 @@ class Message(object):
     ID            = 8
     MESSAGE_TYPE  = 9
     VALUE         = 10
-    RPC_ID        = 11
     NEAREST_NODES = 12
     ALL_ADDR      = 13
     CLI_ADDR      = 14
-    FW_PING       = 15
-    FW_PONG       = 16
-    NETWORK_ID    = 17
 
 message_dict = _consts_to_dict(Message)
 

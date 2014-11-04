@@ -1,9 +1,9 @@
 """ Handling the bucketset """
 import heapq
 import threading
-import collections
 import time
 import binascii
+import asyncio
 
 from .peer    import Peer
 from .hashing import bytes2int, rpc_id_pair
@@ -26,69 +26,43 @@ class BucketSet(object):
     def __init__(self, bucket_size, buckets, id_):
         self.id = id_
         self.bucket_size = bucket_size
-        self.buckets = [collections.OrderedDict() for _ in range(buckets)]
+        self.buckets = [[] for _ in range(buckets)]
         self.lock = threading.Lock()
 
-    def insert(self, peer, server, from_pong=False):
+    @asyncio.coroutine
+    def insert(self, peer, server):
         assert isinstance(peer, Peer)
         if peer.id != self.id:
             bucket_number = largest_differing_bit(self.id, peer.id)
-            if from_pong:
-                # Almost certainly this peer is not firewalled
-                # we set the well connected flag
-                peer.well_connected = True
             peer_tuple = peer.astuple()
             with self.lock:
                 bucket = self.buckets[bucket_number]
                 old_peer = None
                 try:
                     old_peer = Peer(
-                        *bucket[peer.id],
-                        is_bytes=True
+                        *bucket[peer.id]
                     )
                 except KeyError:
                     pass
                 if old_peer:
                     del bucket[peer.id]
-                    if not peer.hostv4:
-                        peer.hostv4 = old_peer.hostv4
-                    if not peer.hostv6:
-                        peer.hostv6 = old_peer.hostv6
+                    if not peer.host_v4:
+                        peer.host_v4 = old_peer.host_v4
+                    if not peer.host_v6:
+                        peer.host_v6 = old_peer.host_v6
                     bucket[peer.id] = peer.astuple()
                 elif len(bucket) >= self.bucket_size:
-                    if from_pong:
-                        bucket.popitem(-1)
-                        items = list(bucket.items())
-                        # Putting the pinged node in the 1/4 (%25) of the
-                        # bucket is a simple async emultion of the protocol
-                        # defined by kademlia, I hope it works ;-)
-                        items.insert(
-                            int(self.bucket_size * 0.25),
-                            (
-                                peer.id,
-                                peer_tuple
-                            )
-                        )
-                        bucket = collections.OrderedDict(items)
-                        self.buckets[bucket_number] = bucket
-                        l.debug(
-                            "Live peer reinserted: %s",
-                            binascii.hexlify(peer.id)
-                        )
-                    else:
-                        pop_peer = Peer(
-                            *bucket.popitem(0)[1],
-                            is_bytes=True
-                        )
-                        rpc_id, hash_id = rpc_id_pair()
-                        with server.dht.rpc_states as states:
-                            states[hash_id] = [time.time()]
-                        pop_peer.ping(
+                    pop_peer = Peer(*bucket[0])
+                    try:
+                        yield from pop_peer.ping(
                             server.dht,
-                            server.dht.peer.id,
-                            rpc_id
                         )
-                        bucket[peer.id] = peer_tuple
+                    except (asyncio.TimeoutError, OSError):
+                        del bucket[0]
+                        bucket.append(peer_tuple)
+                    except Exception:
+                        l.exception("Unhandled exception: please fix")
+                        raise
                 else:
                     bucket[peer.id] = peer_tuple
 
@@ -117,6 +91,5 @@ class BucketSet(object):
             # When sorting well connected nodes are returned first
             best_peers = heapq.nsmallest(num_results, peers, keyfunction)
             return [Peer(
-                *peer,
-                is_bytes=True
+                *peer
             ) for peer in best_peers]

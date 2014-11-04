@@ -5,12 +5,14 @@ import socket
 import ipaddress
 import threading
 import time
+import lazymq
+import asyncio
 
 from .bucketset import BucketSet
 from .hashing   import hash_function, rpc_id_pair, random_id
 from .peer      import Peer
 from .shortlist import Shortlist
-from .helper    import sixunicode, LockedDict
+from .helper    import LockedDict
 from .server    import DHTServer, DHTRequestHandler
 from .const     import Message, Config, Storage
 from .          import upnp
@@ -19,6 +21,8 @@ from .          import threads
 from .log       import log_to_stderr, l
 
 
+# TODO: set well_connected somewhere
+# TODO: all threads must be gone
 # TODO: idea storage limit per peer
 # TODO: local peer id to storage (sqlite)
 # TODO: no republish (write docu why)
@@ -53,101 +57,79 @@ class DHT(object):
     def __init__(
             self,
             port             = Config.PORT,
-            hostv4           = None,
-            hostv6           = None,
+            host_v6          = None,
+            host_v4          = None,
             id_              = None,
-            boot_host        = None,
-            boot_port        = None,
-            listen_hostv4    = "",
-            listen_hostv6    = "",
-            zero_config      = False,
+            bind_v6          = "",
+            bind_v4          = "",
             default_encoding = None,
             port_map         = True,
             network_id       = Config.NETWORK_ID,
             storage          = Storage.MEMORY,
+            cert_chain_pem   = None,
             log              = True,
             debug            = True,
+            loop             = None,
     ):
+        self._loop = loop
         if log:
             log_to_stderr(debug)
         if not id_:
             id_ = random_id()
         if port < 1024:
             raise DHT.NetworkError("Ports below 1024 are not allowed")
-        if boot_host or zero_config:
-            self.firewalled = True
-        else:
-            self.firewalled = False
-        self.stop = threading.Event()
-        self.encoding = default_encoding
-        self.peer = Peer(port, id_, hostv4, hostv6)
+        self.stop       = threading.Event()
+        self.encoding   = default_encoding
+        self.peer       = Peer(port, id_, host_v4, host_v6)
+        self.port       = port
+        self.host_v6    = host_v6
+        self.host_v4    = host_v4
+        self.firewalled = None
+
         if storage == Storage.NONE:
             self.data = None
         else:
             self.data = LockedDict()
         self.buckets = BucketSet(Config.K, Config.ID_BITS, self.peer.id)
         self.rpc_states = LockedDict()
-        self.server4 = None
-        self.server6 = None
         self.boot_peer = None
         self.network_id = network_id
-        if not hostv4:
-            if zero_config:
-                hostv4 = ""
-            self.hostv4 = hostv4
-        else:
-            self.hostv4  = ipaddress.ip_address(hostv4)
-        if not hostv6:
-            if zero_config:
-                hostv6 = ""
-            self.hostv6 = hostv6
-        else:
-            self.hostv6  = ipaddress.ip_address(hostv6)
-        # Detecting dual_stack sockets seems not to work on some OSs
-        # so we always use two sockets
-        if hostv6 is not None:
-            self.server6 = DHTServer(
-                (listen_hostv6, port),
-                DHTRequestHandler,
-                is_v6=True
-            )
-            self.server6.dht = self
-            self.server6_thread = threading.Thread(
-                target=self.server6.serve_forever
-            )
-            self.server6_thread.daemon = True
-            self.server6_thread.start()
-            self.fw_sock6 = socket.socket(
-                socket.AF_INET6,
-                socket.SOCK_DGRAM
-            )
-            self.fw_sock6.setsockopt(
-                socket.IPPROTO_IPV6,
-                socket.IPV6_V6ONLY,
-                True,
-            )
-            self.fw_sock6.bind((listen_hostv6, port + 1))
-        if hostv4 is not None:
-            self.server4 = DHTServer(
-                (listen_hostv4, port),
-                DHTRequestHandler,
-                is_v6=False
-            )
-            self.server4.dht = self
-            self.server4_thread = threading.Thread(
-                target=self.server4.serve_forever
-            )
-            self.server4_thread.daemon = True
-            self.server4_thread.start()
-            self.fw_sock4 = socket.socket(
-                socket.AF_INET,
-                socket.SOCK_DGRAM
-            )
-            self.fw_sock4.bind((listen_hostv4, port + 1))
+        self.lazymq        = lazymq.LazyMQ(
+            port           = self.port,
+            encoding       = self.encoding,
+            bind_v6        = bind_v6,
+            bind_v4        = bind_v4,
+            cert_chain_pem = cert_chain_pem,
+            loop           = self._loop,
+        )
+        # TODO: move this to a thread
         if port_map:
             if not upnp.try_map_port(port):
                 l.warning("UPnP could not map port")
-        if zero_config:
+
+    @asyncio.coroutine
+    def start(
+            self,
+            boot_host        = None,
+            boot_port        = None,
+            zero_config      = False,
+    ):
+        self._zero_config = zero_config
+        if not self.host_v6:
+            if zero_config:
+                self.host_v6 = ""
+        else:
+            self.host_v6   = ipaddress.ip_address(self.host_v6)
+        if not self.host_v4:
+            if zero_config:
+                self.host_v4 = ""
+        else:
+            self.host_v4   = ipaddress.ip_address(self.host_v4)
+        if boot_host or zero_config:
+            self.firewalled = True
+        else:
+            self.firewalled = False
+        if self._zero_config:
             try:
                 self._bootstrap("31.171.244.153", Config.PORT)
             except DHT.NetworkError:
@@ -155,27 +137,19 @@ class DHT(object):
         else:
             if boot_host:
                 self._bootstrap(boot_host, boot_port)
+        # TODO: this needs to be coros
         self.bucket_refrsh  = threads.run_bucket_refresh(self)
         self.check_firewall = threads.run_check_firewalled(self)
         self.rpc_cleanup    = threads.run_rpc_cleanup(self)
 
+
+    @asyncio.coroutine
     def close(self):
         self.stop.set()
         self.bucket_refrsh.join()
         self.check_firewall.join()
         self.rpc_cleanup.join()
-        if self.server4:
-            self.server4.shutdown()
-            self.server4.server_close()
-        if self.server6:
-            self.server6.shutdown()
-            self.server6.server_close()
-        self.server4.idle.wait()
-        self.server6.idle.wait()
-        if self.server4:
-            self.fw_sock4.close()
-        if self.server6:
-            self.fw_sock6.close()
+        yield from self.lazymq.close()
 
     def iterative_find_nodes(self, key, boot_peer=None):
         shortlist = Shortlist(Config.K, key, self.peer.id)
@@ -248,12 +222,12 @@ class DHT(object):
     def _discov_warning(self, found, defined):
         """ Log a warning about wrong public address """
         # TODO: To logging
-        l.warn(  # noqa
-"Warning: defined public address (%s) does not match the\n"  # noqa
-"address found by the bootstap peer (%s). We will use the\n"  # noqa
-"defined address. IPv4/6 convergence will not be optimal!",  # noqa
-defined,  # noqa
-found     # noqa
+        l.warn(
+            """Warning: defined public address (%s) does not match the
+            address found by the bootstap peer (%s). We will use the
+            defined address. IPv4/6 convergence will not be optimal!""",
+            defined,
+            found
         )
 
     def _discov_result(self, res):
@@ -261,17 +235,17 @@ found     # noqa
         for me_msg in res[1:]:
             try:
                 me_tuple = me_msg[Message.CLI_ADDR]
-                me_peer = Peer(*me_tuple, is_bytes=True)
-                if me_peer.hostv4:
-                    if not self.hostv4:
-                        self.peer.hostv4 = me_peer.hostv4
-                    elif me_peer.hostv4 != self.hostv4:
-                        self._discov_warning(me_peer.hostv4, self.hostv4)
-                if me_peer.hostv6:
-                    if not self.hostv6:
-                        self.peer.hostv6 = me_peer.hostv6
-                    elif me_peer.hostv6 != self.hostv6:
-                        self._discov_warning(me_peer.hostv6, self.hostv6)
+                me_peer = Peer(*me_tuple)
+                if me_peer.host_v4:
+                    if not self.host_v4:
+                        self.peer.host_v4 = me_peer.host_v4
+                    elif me_peer.host_v4 != self.host_v4:
+                        self._discov_warning(me_peer.host_v4, self.host_v4)
+                if me_peer.host_v6:
+                    if not self.host_v6:
+                        self.peer.host_v6 = me_peer.host_v6
+                    elif me_peer.host_v6 != self.host_v6:
+                        self._discov_warning(me_peer.host_v6, self.host_v6)
             except TypeError:
                 pass
 
@@ -282,11 +256,11 @@ found     # noqa
 
     def _bootstrap(self, boot_host, boot_port):
         addr = socket.getaddrinfo(boot_host, boot_port)[0][4][0]
-        ipaddr = ipaddress.ip_address(sixunicode(addr))
+        ipaddr = ipaddress.ip_address(addr)
         if isinstance(ipaddr, ipaddress.IPv6Address):
-            boot_peer = Peer(boot_port, 0, hostv6=str(ipaddr))
+            boot_peer = Peer(boot_port, 0, host_v6=str(ipaddr))
         else:
-            boot_peer = Peer(boot_port, 0, hostv4=str(ipaddr))
+            boot_peer = Peer(boot_port, 0, host_v4=str(ipaddr))
 
         rpc_id, hash_id = rpc_id_pair()
         with self.rpc_states as states:
@@ -300,7 +274,7 @@ found     # noqa
             try:
                 with self.rpc_states as states:
                     message = states[hash_id][1]
-                boot_peer = Peer(*message[Message.ALL_ADDR], is_bytes=True)
+                boot_peer = Peer(*message[Message.ALL_ADDR])
                 peer_found = True
             except KeyError:
                 with self.rpc_states as states:
