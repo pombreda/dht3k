@@ -36,20 +36,21 @@ class LinkEncryption(object):
         """
         return ":".join(ciphers.split('\n'))
 
-    def setup_tls(self):
+    def setup_tls(self, cert_chain_pem=None):
         """ Creates an SSLContext """
         # We only talk to lazymq, so we can use the best protocol
         context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         context.check_hostname = False
         context.verify_mode = ssl.CERT_REQUIRED
-        folder = __file__.split(os.path.sep)[:-1]
-        folder.append("cert.pem")
-        path = "%s%s" % (
-            os.path.sep,
-            os.path.join(*folder)
-        )
-        context.load_cert_chain(path)
-        context.load_verify_locations(path)
+        if not cert_chain_pem:
+            folder = __file__.split(os.path.sep)[:-1]
+            folder.append("cert.pem")
+            cert_chain_pem = "%s%s" % (
+                os.path.sep,
+                os.path.join(*folder)
+            )
+        context.load_cert_chain(cert_chain_pem)
+        context.load_verify_locations(cert_chain_pem)
         context.set_ciphers(self.ciphers())
-        
+
         self._ssl_context = context

@@ -14,12 +14,7 @@ from .crypt    import LinkEncryption
 from .tasks    import Cleanup
 
 
-# TODO: connection cleanup
-# TODO: what if one only sends through connection? (no refresh)
-# TODO: close during send is not good
-#   -> probably refresh on begin of operation (send/recv
 # TODO: test reuse
-# TODO: custom SSL cert
 # TODO: bandwidth limit
 # TODO: does call_soon log exceptions?
 # TODO: LazyMQ attrs to ready-only props
@@ -33,12 +28,13 @@ class LazyMQ(Protocol, LinkEncryption, Cleanup):
     then clean up the connection. """
     def __init__(
             self,
-            port         = const.Config.PORT,
-            encoding     = const.Config.ENCODING,
-            ip_protocols = const.Config.PROTOS,
-            bind_v6      = "",
-            bind_v4      = "",
-            loop         = None,
+            port           = const.Config.PORT,
+            encoding       = const.Config.ENCODING,
+            ip_protocols   = const.Config.PROTOS,
+            bind_v6        = "",
+            bind_v4        = "",
+            cert_chain_pem = None,
+            loop           = None,
     ):
         self.port         = port
         self.encoding     = encoding
@@ -55,7 +51,7 @@ class LazyMQ(Protocol, LinkEncryption, Cleanup):
         self._received     = asyncio.Event(loop=self.loop)
         self._queue        = asyncio.Queue(loop=self.loop)
         self._closed       = asyncio.Event(loop=self.loop)
-        self.setup_tls()
+        self.setup_tls(cert_chain_pem)
         if not self._loop:
             self._loop = asyncio.get_event_loop()
         if ip_protocols & const.Protocols.IPV6:
@@ -168,6 +164,18 @@ class LazyMQ(Protocol, LinkEncryption, Cleanup):
         recommended. """
         assert address_v4 or address_v6
         port = int(port)
+        # We cannot use the same port we listen on as with UDP. So we need to
+        # handle that random port the message was sent from.
+        #
+        # 1. If we answer an message we try first to answer it through the
+        # incoming connection, which is identified by the active port.
+        # 2. If we can find that connection it is probably closed. So we check
+        # if we already have a connection to the remote-listening port
+        # 3. If there is no connection in the cache we connect to the
+        # remote-listening port and cache it.
+        #
+        # This is needed because we simulate UDP semantics over TCP, where you
+        # can just point at port and shot.
         if active_port:
             active_port = int(active_port)
             try:
@@ -234,6 +242,10 @@ class LazyMQ(Protocol, LinkEncryption, Cleanup):
         """ Deliver a message and wait for an answer. The identity of the
         answer has to be same as the request. IMPORTANT: The message will still
         be delivered to the queue, so please consume the message.
+
+        If you use this method so submit long-running tasks to remotes consider
+        setting a longer timeout. You should never set no timeout since the
+        remote can die during execution.
 
         This method is a coroutine. """
         self._waiters += 1
